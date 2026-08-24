@@ -1,26 +1,7 @@
 <div align="center">
-<img src="https://capsule-render.vercel.app/api?type=venom&color=0:0D0D0D,50:1a0533,100:0D0D0D&height=280&section=header&text=NOMBRE%20DEL%20PROYECTO&fontSize=58&fontColor=C084FC&animation=fadeIn&fontAlignY=45&stroke=7C3AED&strokeWidth=2&desc=▸%20Descripción%20breve%20del%20proyecto%20aquí%20◂&descAlignY=68&descSize=17&descColor=A78BFA" width="100%"/>
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" width="100%"/>
-<br/>
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=20&pause=900&color=C084FC&center=true&vCenter=true&width=650&lines=%F0%9F%92%BB+Código+limpio%2C+ideas+claras.;%E2%9C%A6+Construido+con+pasión+y+precisión.;%F0%9F%9A%80+Listo+para+ejecutarse.)](https://git.io/typing-svg)
 
-<br/>
-
-<!-- ░░░ BADGES DE ESTADO ░░░ -->
-<p>
-  <img src="https://img.shields.io/badge/Estado-Activo-C084FC?style=for-the-badge&logo=statuspage&logoColor=white&labelColor=1a0533"/>
-  <img src="https://img.shields.io/badge/Versión-1.0.0-7C3AED?style=for-the-badge&logo=git&logoColor=white&labelColor=1a0533"/>
-  <img src="https://img.shields.io/badge/Licencia-MIT-A78BFA?style=for-the-badge&logo=opensourceinitiative&logoColor=white&labelColor=1a0533"/>
-</p>
-
-<!-- ░░░ BADGES DE TECNOLOGÍAS — REEMPLAZA CON TU STACK ░░░ -->
-<p>
-  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black"/>
-  <img src="https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white"/>
-  <img src="https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Git-F05032?style=flat-square&logo=git&logoColor=white"/>
-</p>
+<!-- ░░░ BORDE SUPERIOR — HEADER ANIMADO ░░░ -->
+<img src="https://capsule-render.vercel.app/api?type=venom&color=0:0D0D0D,50:1a0533,100:0D0D0D&height=280&section=header&text=Plataforma%20de%20Trading%20Multiexchange&fontSize=45&fontColor=C084FC&animation=fadeIn&fontAlignY=45&stroke=7C3AED&strokeWidth=2&desc=▸%20para%20la%20Gestión%20de%20Criptomonedas,%20Tokens%20y%20Activos%20Digitales%◂&descAlignY=68&descSize=17&descColor=A78BFA" width="100%"/>
 
 </div>
 
@@ -28,12 +9,6 @@
 <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" width="100%"/>
 
 <br/>
-
-<!--
-╔══════════════════════════════════════════════════════════════╗
-║                        DESCRIPCIÓN                          ║
-╚══════════════════════════════════════════════════════════════╝
--->
 
 <div align="center">
 
@@ -45,15 +20,19 @@
 
 <br/>
 
-> 🔮 &nbsp;**[HOLA]** es una aplicación / algoritmo / herramienta que...
+&nbsp;&nbsp;&nbsp;&nbsp;El presente proyecto tiene como finalidad el diseño y desarrollo de una plataforma local para la gestión y simulación de operaciones de trading con activos digitales, orientada a integrar en un único sistema diferentes funcionalidades relacionadas con criptomonedas, tokens y NFT. Debido a su carácter académico, la solución será desarrollada y ejecutada exclusivamente en un entorno local, sin realizar despliegues en servidores públicos ni operaciones financieras reales.
 
-<!-- 📝 Escribe aquí una descripción real de tu proyecto.
-     ¿Qué hace? ¿Qué problema resuelve? ¿Para quién es?
-     2 o 3 líneas son suficientes. -->
+La plataforma permitirá administrar activos digitales, consultar información del mercado y simular operaciones de compra y venta mediante diferentes tipos de órdenes, incluyendo órdenes de mercado (market), órdenes limitadas (limit) y órdenes de protección mediante stop-loss. Estas operaciones tendrán como objetivo demostrar el funcionamiento de los mecanismos de negociación y no implicarán el uso de dinero real.
 
-&nbsp;&nbsp;&nbsp;&nbsp;Reemplaza este texto con la descripción real de tu trabajo.
-&nbsp;&nbsp;&nbsp;&nbsp;Explica el objetivo del proyecto, el contexto académico y cualquier detalle relevante.
+Como parte del sistema se implementará un módulo de gestión de carteras multiactivo, que permitirá registrar y visualizar los activos disponibles, cantidades, movimientos, operaciones realizadas y valor estimado de la cartera. También se incorporarán funcionalidades básicas de seguimiento del rendimiento y exposición al riesgo, de acuerdo con el alcance definido para el proyecto.
 
+La plataforma contará además con un módulo de gestión de riesgos, mediante el cual se podrán establecer límites y condiciones de protección para las operaciones simuladas. Se contemplará el uso de mecanismos como stop-loss, límites de operación y seguimiento de la exposición de los activos, con el propósito de demostrar cómo pueden aplicarse estrategias básicas de control del riesgo dentro de un sistema de trading.
+
+Otro componente será la integración con múltiples exchanges mediante APIs, principalmente para obtener información de mercado, precios o datos de referencia. Debido al carácter académico del proyecto, estas integraciones estarán limitadas a las funcionalidades necesarias para demostrar el intercambio de información, evitando la implementación de procesos que requieran operar con fondos reales, custodiar credenciales financieras o mantener conexiones permanentes con servicios externos.
+
+Desde el punto de vista tecnológico, se desarrollará una arquitectura modular y segura, que permita separar los principales componentes del sistema y facilitar su implementación, pruebas y mantenimiento durante el periodo académico. Se considerarán aspectos como autenticación de usuarios, almacenamiento de información, validación de operaciones, registro de actividades, manejo de errores y protección básica de los datos.
+
+Finalmente, se desarrollará una interfaz gráfica centralizada desde la cual el usuario podrá consultar información del mercado, administrar sus carteras, crear órdenes simuladas, visualizar las operaciones realizadas y revisar el comportamiento de sus activos. La solución estará orientada principalmente a demostrar el funcionamiento de los conceptos y componentes de una plataforma de trading, priorizando la viabilidad, claridad y cumplimiento del alcance establecido para el proyecto de semestre..
 <br/>
 
 <!-- ░░░ LÍNEA DECORATIVA PUNTEADA ░░░ -->
@@ -69,7 +48,7 @@
 
 <div align="center">
 
-## ✦ &nbsp;Código Fuente&nbsp; ✦
+## ✦ &nbsp;Objetivo General y Especificos&nbsp; ✦
 
 <img src="https://media.giphy.com/media/ZVik7pBtu9dNS/giphy.gif" width="320" alt="code animation"/>
 
@@ -77,60 +56,22 @@
 
 <br/>
 
-### 📄 `main.py`
+&nbsp;&nbsp;&nbsp;&nbsp;**Objetivo General:** <br/> Diseñar un prototipo funcional de una plataforma local para la gestión y simulación de operaciones con activos digitales, con administración de criptomonedas, tokens y NFT, ejecución de diferentes tipos de órdenes, gestión de carteras multiactivo, aplicación de mecanismos básicos de control de riesgos e integración de información de mercado mediante APIs, orientado a la demostración práctica de los principales componentes de una plataforma de trading dentro de un entorno académico y sin utilización de dinero real.
 
-```python
-# ════════════════════════════════════════════════════════════
-#  PROYECTO : [Nombre del Proyecto]
-#  AUTOR    : [Tu Nombre]
-#  FECHA    : [Fecha]
-# ════════════════════════════════════════════════════════════
+**Objetivos Específicos:** <br/>
+**1.** Analizar los requerimientos funcionales y técnicos necesarios para el desarrollo de un prototipo local orientado a la gestión y simulación de operaciones con activos digitales.
 
-# ── IMPORTACIONES ───────────────────────────────────────────
+**2.** Diseñar una arquitectura de software modular que permita organizar adecuadamente los componentes relacionados con usuarios, activos, carteras, órdenes, operaciones y gestión de riesgos.
 
-# import módulo   # descripción breve
+**3.** Implementar un módulo de administración de usuarios destinado a la gestión del acceso al sistema mediante mecanismos básicos de autenticación y autorización.
 
+**4.** Desarrollar un sistema de órdenes que permita la ejecución simulada de operaciones de compra y venta mediante órdenes de mercado (market), órdenes limitadas (limit) y órdenes stop-loss.
 
-# ── CONFIGURACIÓN / CONSTANTES ──────────────────────────────
+**5.** Incorporar mecanismos básicos de gestión y control de riesgos, incluyendo límites de operación, seguimiento de la exposición y condiciones de protección mediante stop-loss.
 
-# VARIABLE = valor
+**6.** Integrar APIs de exchanges seleccionados para la obtención de datos de mercado, tales como precios e información de activos, dentro del alcance establecido para fines demostrativos y académicos.
 
-
-# ── FUNCIONES / CLASES ──────────────────────────────────────
-
-def mi_funcion(parametro):
-    """
-    Qué hace esta función.
-
-    Args:
-        parametro (tipo): descripción.
-
-    Returns:
-        tipo: descripción del retorno.
-    """
-    # 🔧 REEMPLAZA CON TU CÓDIGO REAL
-    pass
-
-
-# ── PUNTO DE ENTRADA ────────────────────────────────────────
-
-if __name__ == "__main__":
-    # Código principal aquí
-    pass
-```
-
-<br/>
-
-> 💡 *Puedes agregar más bloques de código abajo si tu proyecto tiene varios archivos.*
-
-```python
-# ── ARCHIVO 2: utils.py (si aplica) ─────────────────────────
-
-def funcion_auxiliar():
-    """Descripción."""
-    # 🔧 Tu código aquí
-    pass
-```
+**7.** Crear una interfaz gráfica local, clara e intuitiva, que facilite la consulta de información del mercado, la administración de carteras, la generación de operaciones simuladas y la visualización del historial de transacciones.
 
 <br/>
 
@@ -139,22 +80,15 @@ def funcion_auxiliar():
 
 <br/>
 
-<!--
-╔══════════════════════════════════════════════════════════════╗
-║                          AUTOR                              ║
-╚══════════════════════════════════════════════════════════════╝
--->
-
 <div align="center">
 
 ## ✦ &nbsp;Autor&nbsp; ✦
 
-<img src="https://github.com/TU_USUARIO.png" width="90" style="border-radius:50%; border: 3px solid #C084FC;"/>
+<img src="https://w7.pngwing.com/pngs/52/368/png-transparent-user-profile-computer-icons-avatar-avatar-heroes-monochrome-desktop-wallpaper.png" width="90" style="border-radius:50%; border: 3px solid #C084FC;"/>
 
-**Tu Nombre Completo**
-
-[![GitHub](https://img.shields.io/badge/GitHub-C084FC?style=for-the-badge&logo=github&logoColor=white&labelColor=1a0533)](https://github.com/TU_USUARIO)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-7C3AED?style=for-the-badge&logo=linkedin&logoColor=white&labelColor=1a0533)](https://linkedin.com/in/TU_USUARIO)
+**Harvey David Redondo Méndez**<br/>
+**&**<br/>
+**Arturo Hernandez Hernandez**
 
 </div>
 
@@ -166,4 +100,5 @@ def funcion_auxiliar():
 <div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=venom&color=0:0D0D0D,50:1a0533,100:0D0D0D&height=130&section=footer&reversal=false&animation=fadeIn" width="100%"/>
+
 </div>
