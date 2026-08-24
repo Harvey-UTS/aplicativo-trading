@@ -1,22 +1,7 @@
 <div align="center">
-
-<!--
-╔══════════════════════════════════════════════════════════════════════════╗
-║                                                                          ║
-║                      ✦  README — PLANTILLA ÉPICA  ✦                     ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
--->
-
-<!-- ░░░ BORDE SUPERIOR — HEADER ANIMADO ░░░ -->
 <img src="https://capsule-render.vercel.app/api?type=venom&color=0:0D0D0D,50:1a0533,100:0D0D0D&height=280&section=header&text=NOMBRE%20DEL%20PROYECTO&fontSize=58&fontColor=C084FC&animation=fadeIn&fontAlignY=45&stroke=7C3AED&strokeWidth=2&desc=▸%20Descripción%20breve%20del%20proyecto%20aquí%20◂&descAlignY=68&descSize=17&descColor=A78BFA" width="100%"/>
-
-<!-- ░░░ LÍNEA DECORATIVA SUPERIOR ░░░ -->
 <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" width="100%"/>
-
 <br/>
-
-<!-- ░░░ TEXTO ANIMADO TYPEWRITER ░░░ -->
 [![Typing SVG](https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=20&pause=900&color=C084FC&center=true&vCenter=true&width=650&lines=%F0%9F%92%BB+Código+limpio%2C+ideas+claras.;%E2%9C%A6+Construido+con+pasión+y+precisión.;%F0%9F%9A%80+Listo+para+ejecutarse.)](https://git.io/typing-svg)
 
 <br/>
@@ -60,7 +45,7 @@
 
 <br/>
 
-> 🔮 &nbsp;**[NOMBRE DEL PROYECTO]** es una aplicación / algoritmo / herramienta que...
+> 🔮 &nbsp;**[HOLA]** es una aplicación / algoritmo / herramienta que...
 
 <!-- 📝 Escribe aquí una descripción real de tu proyecto.
      ¿Qué hace? ¿Qué problema resuelve? ¿Para quién es?
