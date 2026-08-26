@@ -56,22 +56,16 @@ Finalmente, se desarrollará una interfaz gráfica centralizada desde la cual el
 
 <br/>
 
-&nbsp;&nbsp;&nbsp;&nbsp;**Objetivo General:** <br/> Diseñar un prototipo funcional de una plataforma local para la gestión y simulación de operaciones con activos digitales, con administración de criptomonedas, tokens y NFT, ejecución de diferentes tipos de órdenes, gestión de carteras multiactivo, aplicación de mecanismos básicos de control de riesgos e integración de información de mercado mediante APIs, orientado a la demostración práctica de los principales componentes de una plataforma de trading dentro de un entorno académico y sin utilización de dinero real.
+&nbsp;&nbsp;&nbsp;&nbsp;**Objetivo General:** <br/> Diseñar el prototipo de una plataforma académica para simular operaciones y gestión de carteras de activos digitales, integrando herramientas de mercado y control de riesgos sin riesgo financiero.
 
 **Objetivos Específicos:** <br/>
-**1.** Analizar los requerimientos funcionales y técnicos necesarios para el desarrollo de un prototipo local orientado a la gestión y simulación de operaciones con activos digitales.
+**1.** Desarrollar el módulo central de operaciones que permita la simulación de compra y venta de criptomonedas, tokens y NFT, integrándolo con una interfaz gráfica que facilite la interacción del usuario.
 
-**2.** Diseñar una arquitectura de software modular que permita organizar adecuadamente los componentes relacionados con usuarios, activos, carteras, órdenes, operaciones y gestión de riesgos.
+**2.** Implementar un motor de ejecución de órdenes que soporte la gestión de transacciones simuladas mediante modalidades de mercado (market), límite (limit) y protección de pérdidas (stop-loss).
 
-**3.** Implementar un módulo de administración de usuarios destinado a la gestión del acceso al sistema mediante mecanismos básicos de autenticación y autorización.
+**3.** Estructurar un sistema de administración de carteras multiactivo que incorpore mecanismos de control de riesgos, tales como límites de operación, seguimiento de la exposición y protección del capital simulado.
 
-**4.** Desarrollar un sistema de órdenes que permita la ejecución simulada de operaciones de compra y venta mediante órdenes de mercado (market), órdenes limitadas (limit) y órdenes stop-loss.
-
-**5.** Incorporar mecanismos básicos de gestión y control de riesgos, incluyendo límites de operación, seguimiento de la exposición y condiciones de protección mediante stop-loss.
-
-**6.** Integrar APIs de exchanges seleccionados para la obtención de datos de mercado, tales como precios e información de activos, dentro del alcance establecido para fines demostrativos y académicos.
-
-**7.** Crear una interfaz gráfica local, clara e intuitiva, que facilite la consulta de información del mercado, la administración de carteras, la generación de operaciones simuladas y la visualización del historial de transacciones.
+**4.** Integrar APIs de múltiples exchanges para la obtención y sincronización de datos de mercado, alimentando la plataforma con información real de precios y activos para fines demostrativos y académicos.
 
 <br/>
 
