@@ -109,7 +109,18 @@ Finalmente, se desarrollará una interfaz gráfica centralizada desde la cual el
 <img src="https://lh3.googleusercontent.com/d/1Rx4III5BgBIPJhePriACPgARKwUToEl7" width="100%"/>
 
 </div>
+<br/>
+<div align="center">
 
+## &nbsp;EVIDENCIA VIDEO&nbsp;
+
+<a href="https://drive.google.com/file/d/15-t_hcsmN6Md2-Fpkiq4qMp9zkhHHYW7/view?usp=sharing" target="_blank">
+  <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="120" alt="Icono de Play"/>
+  <br/>
+  <b>🎬 Haz clic aquí para ver el video de demostración en Google Drive</b>
+</a>
+
+</div>
 </div>
 
 <br/>
