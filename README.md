@@ -75,6 +75,46 @@ Finalmente, se desarrollará una interfaz gráfica centralizada desde la cual el
 <br/>
 
 <div align="center">
+  
+## ✦ &nbsp;Patrones Creacionales&nbsp; ✦
+
+<div align="left">
+  
+## &nbsp;Integracion Con Singleton&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;1. La elección del patrón Singleton para la integración de múltiples exchanges, responde a la necesidad arquitectónica de centralizar y proteger el acceso a los datos del mercado, evitando la inconsistencia de información y la saturación de los límites de peticiones (rate limits) impuestos por las APIs externas. Al tratarse de un entorno que debe alimentar simultáneamente diversos componentes asíncronos de la plataforma —como el motor de órdenes, la interfaz gráfica y el gestor de riesgos—, instanciar múltiples manejadores de conexión provocaría redundancia de red, desfases de milisegundos en los precios entre módulos y un consumo ineficiente de memoria. Por lo tanto, este patrón asegura que toda la arquitectura opere bajo una única "fuente de verdad" sincronizada, garantizando que un solo objeto gestione la recepción, el almacenamiento en caché y la distribución de los precios de los activos digitales de manera estable y unificada.
+
+2. El patrón se implementa a nivel de infraestructura de clases en Python, interceptando la asignación de memoria mediante el método especial __new__ (en lugar del tradicional __init__). Su uso se detalla en tres mecanismos concretos:
+
+* Contenedor estático (_instancia = None): Se declara un atributo a nivel de clase que actúa como un puntero estático. Su función es almacenar la única instancia viva del ExchangeConnectionManager en la memoria del programa.
+
+* Control de instanciación (def __new__): Cuando un componente de tu plataforma solicita una conexión (ej. ExchangeConnectionManager()), el método verifica si _instancia está vacía. Solo en el primer llamado (cuando es None), invoca super().__new__(cls) para alojar el objeto en memoria y llama a _inicializar_conexion() para armar el caché de precios base.
+
+* Retorno de referencia compartida: Si el objeto ya fue creado previamente, el método omite la creación y simplemente devuelve la referencia existente. Esto se evidencia en la línea api_interfaz is api_ordenes, la cual confirma de forma binaria que variables distintas en el código base están apuntando exactamente al mismo bloque de memoria.
+
+3. Dentro del objetivo de integración con APIs, el Singleton se utiliza para resolver problemas críticos de sincronización y recursos en la simulación del trading:
+
+* Garantizar una "Fuente de Verdad Única": Se utiliza para que la plataforma no tenga precios desfasados. Si ocurre una fluctuación en el mercado (mediante simular_actualizacion_mercado), el cambio impacta directamente el caché central. Así, el módulo de órdenes y el de la interfaz gráfica leen exactamente el mismo dato al mismo tiempo, previniendo fallos donde la interfaz apruebe una compra con un precio obsoleto.
+
+* Simulación de multiplexación de conexiones: Se utiliza para preparar la base de código para el mundo real. En un entorno de producción con exchanges reales, mantener múltiples conexiones HTTP (o WebSockets) abiertas desde diferentes partes del código resultaría en bloqueos de IP por spam de solicitudes. El Singleton simula un embudo donde todas las partes del software le piden datos a un solo administrador local, y este administrador es el único autorizado para "hablar" con el exterior.
+
+* Desacoplamiento de la lógica de mercado: Permite que cualquier componente acceda a los precios mediante una interfaz limpia (obtener_precio(par_activo)), ocultando toda la complejidad de qué exchanges están conectados, cómo funciona el caché, o cómo se gestionan los errores de red.
+
+</div>
+<br/>
+<div align="left">
+
+## &nbsp;CODIGO FUENTE&nbsp;
+
+<img src="https://lh3.googleusercontent.com/d/1Fj8Da-I6f2UqhaFHxGDtw94_5PLjla8N" width="100%"/>
+
+</div>
+
+</div>
+
+<br/>
+
+<div align="center">
 
 ## ✦ &nbsp;Autor&nbsp; ✦
 
