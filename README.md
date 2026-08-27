@@ -106,7 +106,7 @@ Finalmente, se desarrollará una interfaz gráfica centralizada desde la cual el
 
 ## &nbsp;CODIGO FUENTE&nbsp;
 
-<img src="https://lh3.googleusercontent.com/d/1Fj8Da-I6f2UqhaFHxGDtw94_5PLjla8N" width="100%"/>
+<img src="https://lh3.googleusercontent.com/d/1Rx4III5BgBIPJhePriACPgARKwUToEl7" width="100%"/>
 
 </div>
 
