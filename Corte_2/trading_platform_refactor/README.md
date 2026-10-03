@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y ocho patrones GoF.
+en una arquitectura modular con PySide6, servicios y nueve patrones GoF.
 
 ## Estructura
 
@@ -16,7 +16,9 @@ trading_platform/
 │   ├── prototype.py
 │   ├── builder.py
 │   ├── bridge.py
-│   └── adapter.py
+│   ├── adapter.py
+│   ├── composite.py
+│   └── decorator.py
 ├── services/
 │   ├── trading_service.py
 │   ├── market_service.py
@@ -107,6 +109,21 @@ No existen clases combinadas del tipo `OrdenMarketExchangeA`.
 ### Adapter
 `ApiExchangeA`, `ApiExchangeB` y `ApiExchangeC` simulan APIs con estructuras
 incompatibles. Sus adapters normalizan todo a `Mercado.consultar_precio(activo)`.
+
+### Composite
+`GrupoActivos` compone `PosicionActivo` para representar las posiciones de una
+cartera mediante una estructura jerárquica. `PortfolioService` usa el árbol para
+calcular de forma uniforme el valor y la cantidad de posiciones, dejando abierta
+la posibilidad de agrupar futuras subcarteras o categorías.
+
+### Decorator
+`MercadoConAuditoria` envuelve el contrato `Mercado` sin modificar los adapters.
+Añade trazabilidad de las consultas de precio (exchange, activo, precio, cantidad
+de consultas y última consulta) y `MarketService` utiliza el mercado decorado como
+punto de acceso a los precios. Esta auditoría también se visualiza directamente en
+el Dashboard principal mediante la tabla **Auditoría de mercado (Decorator)**,
+donde se muestran las consultas acumuladas, el último activo consultado, el último
+precio y la fecha/hora de la última consulta para cada exchange.
 
 ## Capas
 

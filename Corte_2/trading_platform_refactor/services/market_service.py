@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from models.asset import ActivoDigital
 from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB, FabricaExchangeC
+from patterns.decorator import MercadoConAuditoria
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT, CreadorToken
 from patterns.singleton import ExchangeConnectionManager
 
@@ -31,6 +32,10 @@ class MarketService:
             "A": FabricaExchangeA(),
             "B": FabricaExchangeB(),
             "C": FabricaExchangeC(),
+        }
+        self._markets = {
+            codigo: MercadoConAuditoria(factory.crear_mercado(), codigo)
+            for codigo, factory in self.factories.items()
         }
         self.creators = {
             "CRIPTO": CreadorCriptomoneda(),
@@ -88,7 +93,7 @@ class MarketService:
         factory = self.factories.get(str(exchange).upper())
         if factory is None:
             raise ValueError("Exchange no válido.")
-        mercado = factory.crear_mercado()
+        mercado = self._markets[str(exchange).upper()]
         try:
             precio = mercado.consultar_precio(activo)
         except KeyError:
@@ -98,6 +103,13 @@ class MarketService:
         self.manager.set_cached_price(str(exchange).upper(), f"{activo.simbolo}/USDT", precio)
         activo.precio = float(precio)
         return float(precio)
+
+    def obtener_auditoria_mercado(self, exchange: str) -> dict[str, object]:
+        """Expone la trazabilidad agregada por el Decorator de mercado."""
+        codigo = str(exchange).upper()
+        if codigo not in self._markets:
+            raise ValueError("Exchange no válido.")
+        return self._markets[codigo].resumen()
 
     def actualizar_mercado(self) -> None:
         """Actualiza el cache de todos los activos con sus adapters."""

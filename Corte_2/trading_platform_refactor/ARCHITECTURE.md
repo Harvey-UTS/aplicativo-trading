@@ -30,6 +30,8 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | `3_Ejercicio.py` | `patterns/abstract_factory.py` + `patterns/adapter.py` | `FabricaExchangeA/B`, mercado y executor |
 | `4_Ejercicio.py` | `models/portfolio.py` + `patterns/prototype.py` | `Cartera`, `GestorCarteras`, helpers |
 | `5_Ejercicio.py` | `patterns/builder.py` + `services/*` | `PlataformaTradingBuilder` y ensamblaje |
+| Nuevo patrón | `patterns/composite.py` + `services/portfolio_service.py` | agrupación jerárquica de posiciones |
+| Nuevo patrón | `patterns/decorator.py` + `services/market_service.py` | trazabilidad de consultas de mercado |
 
 ## Singleton
 
@@ -102,6 +104,12 @@ ApiExchangeC → { ticker: { last: ... } }
 ```
 
 Los adapters transforman esas respuestas al contrato `Mercado.consultar_precio(activo)`.
+
+## Composite
+`PosicionActivo` es la hoja del árbol y `GrupoActivos` es el compuesto. `PortfolioService` construye el árbol de la cartera y lo utiliza para calcular valor y cantidad de posiciones mediante una interfaz común.
+
+## Decorator
+`MercadoConAuditoria` envuelve cualquier implementación de `Mercado` y registra las consultas realizadas sin modificar `ExchangeAAdapter`, `ExchangeBAdapter` ni `ExchangeCAdapter`. `MarketService` conserva una instancia decorada por exchange.
 
 ## Servicios
 

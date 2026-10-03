@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from patterns.composite import construir_composite
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
 from models.portfolio import Cartera
 
@@ -49,7 +50,22 @@ class PortfolioService:
 
     def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
         cartera = self.obtener_cartera(nombre)
-        return cartera.resumen(precios)
+        composite = construir_composite(cartera)
+        activos_valor = composite.valor(precios)
+        total = cartera.saldo_usd + activos_valor
+        return {
+            "saldo_usd": cartera.saldo_usd,
+            "saldo_cop": cartera.saldo_cop,
+            "valor_activos": activos_valor,
+            "valor_total": total,
+            "cantidad_activos": composite.cantidad_componentes(),
+            "exposicion_pct": (activos_valor / total * 100.0) if total else 0.0,
+            "drawdown_pct": (
+                max(0.0, (cartera.capital_referencia_usd - total) / cartera.capital_referencia_usd * 100.0)
+                if cartera.capital_referencia_usd > 0
+                else 0.0
+            ),
+        }
 
     def validar_compra(self, cartera: Cartera, activo_nombre: str, cantidad: float, precio: float, precios: dict[str, float]) -> None:
         total = cantidad * precio
@@ -72,7 +88,7 @@ class PortfolioService:
             raise ValueError("La cartera no tiene suficiente cantidad del activo.")
 
     def evaluar_riesgo(self, cartera: Cartera, precios: dict[str, float]) -> dict[str, object]:
-        resumen = cartera.resumen(precios)
+        resumen = self.obtener_balance(cartera.nombre, precios)
         drawdown = float(resumen["drawdown_pct"])
         exposure = float(resumen["exposicion_pct"])
         alertas: list[str] = []

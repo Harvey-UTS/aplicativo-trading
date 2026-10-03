@@ -1,6 +1,9 @@
 from models.asset import Criptomoneda, NFT
+from models.portfolio import Cartera, Posicion
 from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB
 from patterns.bridge import ExchangeAExecutor, ExchangeBExecutor, OrdenLimit, OrdenMarket
+from patterns.composite import GrupoActivos, PosicionActivo, construir_composite
+from patterns.decorator import MercadoConAuditoria
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
 from patterns.singleton import ExchangeConnectionManager
@@ -90,3 +93,44 @@ def test_cloned_portfolio_keeps_own_risk_configuration():
     assert principal.limite_perdida == 10
     assert principal.stop_loss == 5
     assert principal.take_profit == 10
+
+
+def test_composite_aggregates_leaf_positions_and_nested_groups():
+    cartera = Cartera("Cartera de prueba")
+    cartera.activos.extend([
+        Posicion("Bitcoin", 0.1, 60000),
+        Posicion("Ethereum", 2, 3000),
+    ])
+
+    root = construir_composite(cartera)
+    grupo_crypto = GrupoActivos("Cripto")
+    for componente in root.componentes:
+        grupo_crypto.agregar(componente)
+
+    nested = GrupoActivos("Resumen")
+    nested.agregar(grupo_crypto)
+
+    assert root.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
+    assert nested.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
+    assert nested.cantidad_componentes() == 2
+
+
+def test_decorator_adds_market_audit_without_changing_price():
+    from patterns.adapter import ExchangeAAdapter
+
+    manager = ExchangeConnectionManager()
+    manager.reset_for_tests()
+    from patterns.adapter import ApiExchangeA
+
+    manager = ExchangeConnectionManager()
+    adapter = ExchangeAAdapter(ApiExchangeA(manager))
+    decorated = MercadoConAuditoria(adapter, "A")
+    asset = Criptomoneda("Bitcoin", 60000, "BTC")
+
+    price = decorated.consultar_precio(asset)
+    audit = decorated.resumen()
+
+    assert price == 60000.0
+    assert audit["exchange"] == "A"
+    assert audit["consultas"] == 1
+    assert audit["ultima_consulta"]["activo"] == "Bitcoin"

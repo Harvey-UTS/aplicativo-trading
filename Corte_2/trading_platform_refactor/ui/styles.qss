@@ -175,3 +175,18 @@ QScrollBar::handle:vertical {
     border-radius: 5px;
     min-height: 24px;
 }
+
+QTableWidget#auditTable {
+    background: #0f151c;
+    alternate-background-color: #111a22;
+    border: 1px solid #202b36;
+    border-radius: 12px;
+    gridline-color: #202b36;
+    selection-background-color: #1a3c32;
+    selection-color: #f1f7f4;
+}
+
+QTableWidget#auditTable QTableCornerButton::section {
+    background: #131b24;
+    border: 0;
+}
