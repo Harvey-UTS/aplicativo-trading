@@ -6,9 +6,9 @@ from PySide6.QtWidgets import QLabel, QTableWidget, QTableWidgetItem, QVBoxLayou
 
 
 class MarketPage(QWidget):
-    def __init__(self, market_service) -> None:
+    def __init__(self, facade) -> None:
         super().__init__()
-        self.market_service = market_service
+        self.facade = facade
         self.previous: dict[tuple[str, str], float] = {}
         self._build()
 
@@ -31,7 +31,7 @@ class MarketPage(QWidget):
         layout.addWidget(self.table, 1)
 
     def refresh(self) -> None:
-        rows = self.market_service.tabla_mercado(self.previous)
+        rows = self.facade.tabla_mercado(self.previous)
         self.table.setRowCount(len(rows))
         current: dict[tuple[str, str], float] = {}
         for row_index, row in enumerate(rows):

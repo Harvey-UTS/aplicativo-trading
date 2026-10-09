@@ -134,3 +134,28 @@ def test_decorator_adds_market_audit_without_changing_price():
     assert audit["exchange"] == "A"
     assert audit["consultas"] == 1
     assert audit["ultima_consulta"]["activo"] == "Bitcoin"
+
+
+def test_facade_unifies_market_portfolio_and_order_flow():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+
+    assert any(asset.nombre == "Bitcoin" for asset in facade.obtener_activos())
+    assert any(portfolio.nombre == "Cartera Principal" for portfolio in facade.listar_carteras())
+
+    registro = facade.crear_y_ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert registro.total > 0
+    assert facade.historial_ordenes()[0].id == registro.id
+    assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None

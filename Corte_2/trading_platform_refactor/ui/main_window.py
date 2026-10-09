@@ -15,10 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from patterns.singleton import ExchangeConnectionManager
-from services.market_service import MarketService
-from services.portfolio_service import PortfolioService
-from services.trading_service import TradingService
+from patterns.facade import TradingPlatformFacade
 from ui.assets_page import AssetsPage
 from ui.dashboard_page import DashboardPage
 from ui.market_page import MarketPage
@@ -35,12 +32,8 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self.setMinimumSize(1100, 720)
 
-        self.manager = ExchangeConnectionManager()
-        self.market_service = MarketService(self.manager)
-        self.portfolio_service = PortfolioService()
-        self.trading_service = TradingService(self.market_service, self.portfolio_service)
-
-        self.manager.start()
+        self.facade = TradingPlatformFacade()
+        self.facade.iniciar()
         self._build_ui()
         self._load_styles()
         self._start_timer()
@@ -92,25 +85,11 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(footer)
 
         self.stack = QStackedWidget()
-        self.dashboard_page = DashboardPage(
-            self.market_service,
-            self.portfolio_service,
-            self.trading_service,
-            self.refresh_all,
-        )
-        self.market_page = MarketPage(self.market_service)
-        self.assets_page = AssetsPage(self.market_service, self.refresh_all)
-        self.orders_page = OrdersPage(
-            self.market_service,
-            self.portfolio_service,
-            self.trading_service,
-            self.refresh_all,
-        )
-        self.portfolios_page = PortfoliosPage(
-            self.market_service,
-            self.portfolio_service,
-            self.refresh_all,
-        )
+        self.dashboard_page = DashboardPage(self.facade, self.refresh_all)
+        self.market_page = MarketPage(self.facade)
+        self.assets_page = AssetsPage(self.facade, self.refresh_all)
+        self.orders_page = OrdersPage(self.facade, self.refresh_all)
+        self.portfolios_page = PortfoliosPage(self.facade, self.refresh_all)
 
         for page in [
             self.dashboard_page,
@@ -144,7 +123,7 @@ class MainWindow(QMainWindow):
             button.style().polish(button)
 
     def refresh_all(self) -> None:
-        self.market_service.actualizar_mercado()
+        self.facade.actualizar_mercado()
         self.dashboard_page.refresh()
         self.market_page.refresh()
         self.assets_page.refresh()
@@ -152,5 +131,5 @@ class MainWindow(QMainWindow):
         self.portfolios_page.refresh()
 
     def closeEvent(self, event) -> None:
-        self.manager.stop()
+        self.facade.cerrar()
         event.accept()

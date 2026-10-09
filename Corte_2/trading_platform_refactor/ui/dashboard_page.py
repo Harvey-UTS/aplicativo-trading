@@ -16,17 +16,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from services.market_service import MarketService
-from services.portfolio_service import PortfolioService
-from services.trading_service import TradingService
-
-
 class DashboardPage(QWidget):
-    def __init__(self, market_service, portfolio_service, trading_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service: MarketService = market_service
-        self.portfolio_service: PortfolioService = portfolio_service
-        self.trading_service: TradingService = trading_service
+        self.facade = facade
         self.on_change = on_change
         self.cards: dict[str, QLabel] = {}
         self._build()
@@ -112,7 +105,7 @@ class DashboardPage(QWidget):
     def _refresh_audit_table(self) -> None:
         """Muestra en el Dashboard la trazabilidad acumulada por el Decorator."""
         for row, exchange in enumerate(("A", "B", "C")):
-            audit = self.market_service.obtener_auditoria_mercado(exchange)
+            audit = self.facade.obtener_auditoria_mercado(exchange)
             latest = audit.get("ultima_consulta") or {}
 
             activo = latest.get("activo", "Sin consultas")
@@ -151,18 +144,18 @@ class DashboardPage(QWidget):
         return frame, value
 
     def refresh(self) -> None:
-        cartera = self.portfolio_service.obtener_cartera("Cartera Principal")
+        cartera = self.facade.obtener_cartera("Cartera Principal")
         precios = {}
         for position in cartera.activos:
             try:
-                precios[position.nombre] = self.market_service.obtener_precio(position.nombre, "A")
+                precios[position.nombre] = self.facade.obtener_precio(position.nombre, "A")
             except ValueError:
                 precios[position.nombre] = position.precio_promedio
-        resumen = self.portfolio_service.obtener_balance(cartera.nombre, precios)
+        resumen = self.facade.obtener_balance(cartera.nombre, precios)
 
-        btc = self.market_service.obtener_precio("Bitcoin", "A")
-        eth = self.market_service.obtener_precio("Ethereum", "A")
-        sol = self.market_service.obtener_precio("Solana", "A")
+        btc = self.facade.obtener_precio("Bitcoin", "A")
+        eth = self.facade.obtener_precio("Ethereum", "A")
+        sol = self.facade.obtener_precio("Solana", "A")
 
         self.cards["BTC"].setText(f"${btc:,.2f}")
         self.cards["ETH"].setText(f"${eth:,.2f}")

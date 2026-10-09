@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
 
 
 class AssetsPage(QWidget):
-    def __init__(self, market_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
+        self.facade = facade
         self.on_change = on_change
         self._build()
         self.refresh()
@@ -78,7 +78,7 @@ class AssetsPage(QWidget):
 
     def create_asset(self) -> None:
         try:
-            activo = self.market_service.crear_activo(
+            activo = self.facade.crear_activo(
                 self.type_combo.currentText(),
                 self.name_input.text(),
                 self.price_input.value(),
@@ -94,7 +94,7 @@ class AssetsPage(QWidget):
         self.on_change()
 
     def refresh(self) -> None:
-        assets = self.market_service.obtener_activos()
+        assets = self.facade.obtener_activos()
         self.table.setRowCount(len(assets))
         for row, asset in enumerate(assets):
             values = [asset.nombre, asset.simbolo, asset.tipo, f"${asset.precio:,.2f}", "Disponible"]

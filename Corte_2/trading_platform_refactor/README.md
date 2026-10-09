@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y nueve patrones GoF.
+en una arquitectura modular con PySide6, servicios y diez patrones GoF.
 
 ## Estructura
 
@@ -18,7 +18,8 @@ trading_platform/
 │   ├── bridge.py
 │   ├── adapter.py
 │   ├── composite.py
-│   └── decorator.py
+│   ├── decorator.py
+│   └── facade.py
 ├── services/
 │   ├── trading_service.py
 │   ├── market_service.py
@@ -125,12 +126,22 @@ el Dashboard principal mediante la tabla **Auditoría de mercado (Decorator)**,
 donde se muestran las consultas acumuladas, el último activo consultado, el último
 precio y la fecha/hora de la última consulta para cada exchange.
 
+### Facade — `TradingPlatformFacade`
+Centraliza el acceso de la interfaz a `MarketService`, `PortfolioService` y
+`TradingService`. `MainWindow` construye una sola fachada y la comparte con todas
+las páginas; así la interfaz no instancia ni coordina los servicios por separado.
+El método `crear_y_ejecutar_orden()` reúne la creación y ejecución de una orden en
+una operación de alto nivel, mientras la validación de riesgo, el Builder y los
+patrones especializados permanecen en sus servicios originales.
+
 ## Capas
 
 ```text
 PySide6 UI
    ↓
-Services
+TradingPlatformFacade
+   ↓
+MarketService · TradingService · PortfolioService
    ↓
 Patterns + Models
 ```

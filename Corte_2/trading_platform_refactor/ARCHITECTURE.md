@@ -9,6 +9,9 @@ PySide6
 UI pages
   │
   ▼
+TradingPlatformFacade
+  │
+  ▼
 Services
   │
   ├── TradingService
@@ -32,6 +35,7 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | `5_Ejercicio.py` | `patterns/builder.py` + `services/*` | `PlataformaTradingBuilder` y ensamblaje |
 | Nuevo patrón | `patterns/composite.py` + `services/portfolio_service.py` | agrupación jerárquica de posiciones |
 | Nuevo patrón | `patterns/decorator.py` + `services/market_service.py` | trazabilidad de consultas de mercado |
+| Nuevo patrón | `patterns/facade.py` + `ui/main_window.py` y páginas | punto de acceso unificado a mercado, órdenes y carteras |
 
 ## Singleton
 
@@ -110,6 +114,13 @@ Los adapters transforman esas respuestas al contrato `Mercado.consultar_precio(a
 
 ## Decorator
 `MercadoConAuditoria` envuelve cualquier implementación de `Mercado` y registra las consultas realizadas sin modificar `ExchangeAAdapter`, `ExchangeBAdapter` ni `ExchangeCAdapter`. `MarketService` conserva una instancia decorada por exchange.
+
+## Facade
+`TradingPlatformFacade` crea y coordina `MarketService`, `TradingService` y
+`PortfolioService`, y ofrece a las páginas una interfaz de alto nivel. La UI deja
+de instanciar o coordinar directamente los servicios. `crear_y_ejecutar_orden()`
+encapsula la secuencia habitual de construcción y ejecución, sin duplicar la
+lógica de validación ni los patrones que ya utilizan los servicios.
 
 ## Servicios
 

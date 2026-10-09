@@ -34,11 +34,9 @@ class OrdersPage(QWidget):
         "Total",
     ]
 
-    def __init__(self, market_service, portfolio_service, trading_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
-        self.portfolio_service = portfolio_service
-        self.trading_service = trading_service
+        self.facade = facade
         self.on_change = on_change
         self._build()
         self._refresh_combos()
@@ -123,13 +121,13 @@ class OrdersPage(QWidget):
         self.exchange_combo.blockSignals(False)
 
         self.portfolio_combo.clear()
-        self.portfolio_combo.addItems([p.nombre for p in self.portfolio_service.listar_carteras()])
+        self.portfolio_combo.addItems([p.nombre for p in self.facade.listar_carteras()])
         portfolio_index = self.portfolio_combo.findText(current_portfolio)
         if portfolio_index >= 0:
             self.portfolio_combo.setCurrentIndex(portfolio_index)
 
         self.asset_combo.clear()
-        self.asset_combo.addItems([a.nombre for a in self.market_service.obtener_activos()])
+        self.asset_combo.addItems([a.nombre for a in self.facade.obtener_activos()])
         asset_index = self.asset_combo.findText(current_asset)
         if asset_index >= 0:
             self.asset_combo.setCurrentIndex(asset_index)
@@ -138,7 +136,7 @@ class OrdersPage(QWidget):
         type_text = self.type_combo.currentText()
         target = None if type_text == "MARKET" else self.target.value()
         try:
-            platform, registro = self.trading_service.crear_orden(
+            registro = self.facade.crear_y_ejecutar_orden(
                 type_text,
                 self.side_combo.currentText(),
                 self.exchange_combo.currentText(),
@@ -147,7 +145,6 @@ class OrdersPage(QWidget):
                 self.portfolio_combo.currentText(),
                 target,
             )
-            self.trading_service.ejecutar_orden(platform, registro)
         except (ValueError, KeyError) as exc:
             QMessageBox.warning(self, "Orden rechazada", str(exc))
             return
@@ -162,7 +159,7 @@ class OrdersPage(QWidget):
 
     def refresh(self) -> None:
         self._refresh_combos()
-        history = self.trading_service.historial()
+        history = self.facade.historial_ordenes()
         self.table.setRowCount(len(history))
         for row, order in enumerate(history):
             values = order.to_row()

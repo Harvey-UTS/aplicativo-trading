@@ -20,10 +20,9 @@ from PySide6.QtWidgets import (
 
 
 class PortfoliosPage(QWidget):
-    def __init__(self, market_service, portfolio_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
-        self.portfolio_service = portfolio_service
+        self.facade = facade
         self.on_change = on_change
         # Controla si los campos de riesgo contienen cambios que todavía
         # no deben ser reemplazados por el refresco periódico de la UI.
@@ -115,7 +114,7 @@ class PortfoliosPage(QWidget):
 
     def clone(self) -> None:
         try:
-            clone = self.portfolio_service.clonar_cartera(self.clone_name.text(), self.clone_pct.value())
+            clone = self.facade.clonar_cartera(self.clone_name.text(), self.clone_pct.value())
         except ValueError as exc:
             QMessageBox.warning(self, "No se pudo clonar", str(exc))
             return
@@ -154,7 +153,7 @@ class PortfoliosPage(QWidget):
         # Cambiar de cartera significa trabajar con la configuración de esa
         # cartera. Los cambios no guardados se descartan únicamente al
         # seleccionar otra cartera; el refresco automático nunca los pisa.
-        cartera = self.portfolio_service.obtener_cartera(name)
+        cartera = self.facade.obtener_cartera(name)
         self._set_risk_fields_from_model(cartera)
         self._refresh_table(cartera)
 
@@ -165,7 +164,7 @@ class PortfoliosPage(QWidget):
             return
 
         try:
-            self.portfolio_service.configurar_riesgo(
+            self.facade.configurar_riesgo(
                 name,
                 self.exposure.value(),
                 self.loss.value(),
@@ -189,7 +188,7 @@ class PortfoliosPage(QWidget):
         name = self.portfolio_combo.currentText()
         if not name:
             return
-        cartera = self.portfolio_service.obtener_cartera(name)
+        cartera = self.facade.obtener_cartera(name)
 
         # Durante la edición, el refresco periódico solo actualiza la información
         # calculada. No vuelve a escribir los controles con los valores del modelo.
@@ -201,7 +200,7 @@ class PortfoliosPage(QWidget):
 
     def _refresh_table(self, cartera) -> None:
         prices = {
-            position.nombre: self.market_service.obtener_precio(position.nombre, "A")
+            position.nombre: self.facade.obtener_precio(position.nombre, "A")
             for position in cartera.activos
         }
         total = cartera.valor_total_usd(prices)
@@ -209,7 +208,7 @@ class PortfoliosPage(QWidget):
         self.balance_label.setText(
             f"Saldo: ${cartera.saldo_usd:,.2f} USD  •  Activos: ${activos_valor:,.2f} USD  •  Total: ${total:,.2f} USD"
         )
-        riesgo = self.portfolio_service.evaluar_riesgo(cartera, prices)
+        riesgo = self.facade.evaluar_riesgo(cartera, prices)
         self.risk_label.setText(
             f"Exposición: {riesgo['exposicion_pct']:.2f}%  •  Drawdown: {riesgo['drawdown_pct']:.2f}%  •  SL {cartera.stop_loss:.2f}%  •  TP {cartera.take_profit:.2f}%"
         )
@@ -234,7 +233,7 @@ class PortfoliosPage(QWidget):
         current = self.portfolio_combo.currentText()
         self.portfolio_combo.blockSignals(True)
         self.portfolio_combo.clear()
-        self.portfolio_combo.addItems([p.nombre for p in self.portfolio_service.listar_carteras()])
+        self.portfolio_combo.addItems([p.nombre for p in self.facade.listar_carteras()])
         if current:
             index = self.portfolio_combo.findText(current)
             if index >= 0:

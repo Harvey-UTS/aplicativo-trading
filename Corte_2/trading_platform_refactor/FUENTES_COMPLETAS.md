@@ -1,6 +1,6 @@
 # Fuentes completas — Trading MultiExchange
 
-Cada archivo aparece por separado y dentro de un bloque completo listo para copiar.
+Cada archivo Python aparece por separado y dentro de un bloque completo listo para copiar.
 
 ## `main.py`
 
@@ -987,6 +987,188 @@ class MercadoConAuditoria(MercadoDecorator):
         }
 ```
 
+## `patterns/facade.py`
+
+```python
+"""Facade: punto de acceso unificado a los servicios de la plataforma."""
+
+from __future__ import annotations
+
+from models.asset import ActivoDigital
+from models.order import OrdenRegistro
+from models.portfolio import Cartera
+from patterns.builder import PlataformaTrading
+from patterns.singleton import ExchangeConnectionManager
+from services.market_service import MarketRow, MarketService
+from services.portfolio_service import PortfolioService
+from services.trading_service import TradingService
+
+
+class TradingPlatformFacade:
+    """Simplifica la interacción con mercado, carteras, órdenes y riesgo.
+
+    La interfaz gráfica utiliza esta fachada en lugar de crear y coordinar los
+    servicios por separado. La lógica detallada continúa encapsulada en cada
+    servicio especializado.
+    """
+
+    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
+        self._manager = manager or ExchangeConnectionManager()
+        self._market = MarketService(self._manager)
+        self._portfolios = PortfolioService()
+        self._trading = TradingService(self._market, self._portfolios)
+
+    @property
+    def manager(self) -> ExchangeConnectionManager:
+        """Expone el gestor compartido para administrar el ciclo de vida local."""
+        return self._manager
+
+    def iniciar(self) -> None:
+        """Inicia la actualización local de precios simulados."""
+        self._manager.start()
+
+    def cerrar(self) -> None:
+        """Detiene la actualización local al cerrar la aplicación."""
+        self._manager.stop()
+
+    # Mercado y activos
+    def actualizar_mercado(self) -> None:
+        self._market.actualizar_mercado()
+
+    def crear_activo(
+        self,
+        tipo: str,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        return self._market.crear_activo(tipo, nombre, precio, simbolo)
+
+    def obtener_activos(self) -> list[ActivoDigital]:
+        return self._market.obtener_activos()
+
+    def obtener_activo(self, nombre: str) -> ActivoDigital:
+        return self._market.obtener_activo(nombre)
+
+    def obtener_precio(self, activo: ActivoDigital | str, exchange: str = "A") -> float:
+        return self._market.obtener_precio(activo, exchange)
+
+    def obtener_auditoria_mercado(self, exchange: str) -> dict[str, object]:
+        return self._market.obtener_auditoria_mercado(exchange)
+
+    def tabla_mercado(
+        self,
+        previous: dict[tuple[str, str], float] | None = None,
+    ) -> list[MarketRow]:
+        return self._market.tabla_mercado(previous)
+
+    # Carteras y control de riesgo
+    def listar_carteras(self) -> list[Cartera]:
+        return self._portfolios.listar_carteras()
+
+    def obtener_cartera(self, nombre: str) -> Cartera:
+        return self._portfolios.obtener_cartera(nombre)
+
+    def recargar_cartera(self, nombre: str, monto: float, moneda: str) -> None:
+        self._portfolios.recargar(nombre, monto, moneda)
+
+    def clonar_cartera(self, nombre: str, porcentaje: float) -> Cartera:
+        return self._portfolios.clonar_cartera(nombre, porcentaje)
+
+    def configurar_riesgo(
+        self,
+        nombre: str,
+        exposicion: float,
+        perdida: float,
+        stop_loss: float,
+        take_profit: float,
+    ) -> None:
+        self._portfolios.configurar_riesgo(
+            nombre, exposicion, perdida, stop_loss, take_profit
+        )
+
+    def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
+        return self._portfolios.obtener_balance(nombre, precios)
+
+    def evaluar_riesgo(self, cartera: Cartera, precios: dict[str, float]) -> dict[str, object]:
+        return self._portfolios.evaluar_riesgo(cartera, precios)
+
+    # Órdenes y simulación de operaciones
+    def crear_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> tuple[PlataformaTrading, OrdenRegistro]:
+        return self._trading.crear_orden(
+            tipo_orden,
+            lado,
+            exchange,
+            activo_nombre,
+            cantidad,
+            cartera_nombre,
+            precio_objetivo,
+        )
+
+    def ejecutar_orden(
+        self,
+        plataforma: PlataformaTrading,
+        registro: OrdenRegistro,
+    ) -> OrdenRegistro:
+        return self._trading.ejecutar_orden(plataforma, registro)
+
+    def crear_y_ejecutar_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> OrdenRegistro:
+        """Coordina la construcción, validación y ejecución de una orden."""
+        plataforma, registro = self.crear_orden(
+            tipo_orden,
+            lado,
+            exchange,
+            activo_nombre,
+            cantidad,
+            cartera_nombre,
+            precio_objetivo,
+        )
+        return self.ejecutar_orden(plataforma, registro)
+
+    def comprar_activo(
+        self,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str = "Cartera Principal",
+    ) -> OrdenRegistro:
+        return self._trading.comprar_activo(
+            exchange, activo_nombre, cantidad, cartera_nombre
+        )
+
+    def vender_activo(
+        self,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str = "Cartera Principal",
+    ) -> OrdenRegistro:
+        return self._trading.vender_activo(
+            exchange, activo_nombre, cantidad, cartera_nombre
+        )
+
+    def historial_ordenes(self) -> list[OrdenRegistro]:
+        return self._trading.historial()
+```
+
 ## `models/__init__.py`
 
 ```python
@@ -1780,9 +1962,9 @@ from PySide6.QtWidgets import (
 
 
 class AssetsPage(QWidget):
-    def __init__(self, market_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
+        self.facade = facade
         self.on_change = on_change
         self._build()
         self.refresh()
@@ -1837,7 +2019,7 @@ class AssetsPage(QWidget):
 
     def create_asset(self) -> None:
         try:
-            activo = self.market_service.crear_activo(
+            activo = self.facade.crear_activo(
                 self.type_combo.currentText(),
                 self.name_input.text(),
                 self.price_input.value(),
@@ -1853,7 +2035,7 @@ class AssetsPage(QWidget):
         self.on_change()
 
     def refresh(self) -> None:
-        assets = self.market_service.obtener_activos()
+        assets = self.facade.obtener_activos()
         self.table.setRowCount(len(assets))
         for row, asset in enumerate(assets):
             values = [asset.nombre, asset.simbolo, asset.tipo, f"${asset.precio:,.2f}", "Disponible"]
@@ -1870,6 +2052,7 @@ class AssetsPage(QWidget):
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QAbstractItemView
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -1882,17 +2065,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from services.market_service import MarketService
-from services.portfolio_service import PortfolioService
-from services.trading_service import TradingService
-
-
 class DashboardPage(QWidget):
-    def __init__(self, market_service, portfolio_service, trading_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service: MarketService = market_service
-        self.portfolio_service: PortfolioService = portfolio_service
-        self.trading_service: TradingService = trading_service
+        self.facade = facade
         self.on_change = on_change
         self.cards: dict[str, QLabel] = {}
         self._build()
@@ -1934,6 +2110,29 @@ class DashboardPage(QWidget):
             grid.addWidget(frame, idx // 3, idx % 3)
         layout.addLayout(grid)
 
+        audit_section = QLabel("Auditoría de mercado (Decorator)")
+        audit_section.setObjectName("sectionTitle")
+        layout.addWidget(audit_section)
+
+        audit_description = QLabel(
+            "Registro visual de las consultas de precio realizadas por el Decorator en cada exchange."
+        )
+        audit_description.setObjectName("pageSubtitle")
+        layout.addWidget(audit_description)
+
+        self.audit_table = QTableWidget(3, 5)
+        self.audit_table.setHorizontalHeaderLabels([
+            "Exchange", "Consultas", "Último activo", "Último precio", "Última consulta"
+        ])
+        self.audit_table.setObjectName("auditTable")
+        self.audit_table.verticalHeader().setVisible(False)
+        self.audit_table.setAlternatingRowColors(True)
+        self.audit_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.audit_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.audit_table.setMinimumHeight(120)
+        self.audit_table.setMaximumHeight(150)
+        layout.addWidget(self.audit_table)
+
         section = QLabel("Composición de la cartera principal")
         section.setObjectName("sectionTitle")
         layout.addWidget(section)
@@ -1952,6 +2151,34 @@ class DashboardPage(QWidget):
         note.setAlignment(Qt.AlignCenter)
         layout.addWidget(note)
 
+    def _refresh_audit_table(self) -> None:
+        """Muestra en el Dashboard la trazabilidad acumulada por el Decorator."""
+        for row, exchange in enumerate(("A", "B", "C")):
+            audit = self.facade.obtener_auditoria_mercado(exchange)
+            latest = audit.get("ultima_consulta") or {}
+
+            activo = latest.get("activo", "Sin consultas")
+            precio = latest.get("precio")
+            timestamp = latest.get("timestamp")
+
+            precio_text = f"${float(precio):,.2f}" if precio is not None else "—"
+            if timestamp is not None and hasattr(timestamp, "strftime"):
+                timestamp_text = timestamp.strftime("%d/%m/%Y %H:%M:%S")
+            else:
+                timestamp_text = "—"
+
+            values = [
+                f"Exchange {exchange}",
+                str(audit.get("consultas", 0)),
+                str(activo),
+                precio_text,
+                timestamp_text,
+            ]
+            for col, text in enumerate(values):
+                self.audit_table.setItem(row, col, QTableWidgetItem(text))
+
+        self.audit_table.resizeColumnsToContents()
+
     def _metric_card(self, label: str):
         frame = QFrame()
         frame.setObjectName("metricCard")
@@ -1966,18 +2193,18 @@ class DashboardPage(QWidget):
         return frame, value
 
     def refresh(self) -> None:
-        cartera = self.portfolio_service.obtener_cartera("Cartera Principal")
+        cartera = self.facade.obtener_cartera("Cartera Principal")
         precios = {}
         for position in cartera.activos:
             try:
-                precios[position.nombre] = self.market_service.obtener_precio(position.nombre, "A")
+                precios[position.nombre] = self.facade.obtener_precio(position.nombre, "A")
             except ValueError:
                 precios[position.nombre] = position.precio_promedio
-        resumen = self.portfolio_service.obtener_balance(cartera.nombre, precios)
+        resumen = self.facade.obtener_balance(cartera.nombre, precios)
 
-        btc = self.market_service.obtener_precio("Bitcoin", "A")
-        eth = self.market_service.obtener_precio("Ethereum", "A")
-        sol = self.market_service.obtener_precio("Solana", "A")
+        btc = self.facade.obtener_precio("Bitcoin", "A")
+        eth = self.facade.obtener_precio("Ethereum", "A")
+        sol = self.facade.obtener_precio("Solana", "A")
 
         self.cards["BTC"].setText(f"${btc:,.2f}")
         self.cards["ETH"].setText(f"${eth:,.2f}")
@@ -1999,6 +2226,7 @@ class DashboardPage(QWidget):
             ]
             for col, text in enumerate(values):
                 self.table.setItem(row, col, QTableWidgetItem(text))
+        self._refresh_audit_table()
         self.table.resizeColumnsToContents()
 ```
 
@@ -2022,10 +2250,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from patterns.singleton import ExchangeConnectionManager
-from services.market_service import MarketService
-from services.portfolio_service import PortfolioService
-from services.trading_service import TradingService
+from patterns.facade import TradingPlatformFacade
 from ui.assets_page import AssetsPage
 from ui.dashboard_page import DashboardPage
 from ui.market_page import MarketPage
@@ -2042,12 +2267,8 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self.setMinimumSize(1100, 720)
 
-        self.manager = ExchangeConnectionManager()
-        self.market_service = MarketService(self.manager)
-        self.portfolio_service = PortfolioService()
-        self.trading_service = TradingService(self.market_service, self.portfolio_service)
-
-        self.manager.start()
+        self.facade = TradingPlatformFacade()
+        self.facade.iniciar()
         self._build_ui()
         self._load_styles()
         self._start_timer()
@@ -2099,25 +2320,11 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(footer)
 
         self.stack = QStackedWidget()
-        self.dashboard_page = DashboardPage(
-            self.market_service,
-            self.portfolio_service,
-            self.trading_service,
-            self.refresh_all,
-        )
-        self.market_page = MarketPage(self.market_service)
-        self.assets_page = AssetsPage(self.market_service, self.refresh_all)
-        self.orders_page = OrdersPage(
-            self.market_service,
-            self.portfolio_service,
-            self.trading_service,
-            self.refresh_all,
-        )
-        self.portfolios_page = PortfoliosPage(
-            self.market_service,
-            self.portfolio_service,
-            self.refresh_all,
-        )
+        self.dashboard_page = DashboardPage(self.facade, self.refresh_all)
+        self.market_page = MarketPage(self.facade)
+        self.assets_page = AssetsPage(self.facade, self.refresh_all)
+        self.orders_page = OrdersPage(self.facade, self.refresh_all)
+        self.portfolios_page = PortfoliosPage(self.facade, self.refresh_all)
 
         for page in [
             self.dashboard_page,
@@ -2151,7 +2358,7 @@ class MainWindow(QMainWindow):
             button.style().polish(button)
 
     def refresh_all(self) -> None:
-        self.market_service.actualizar_mercado()
+        self.facade.actualizar_mercado()
         self.dashboard_page.refresh()
         self.market_page.refresh()
         self.assets_page.refresh()
@@ -2159,7 +2366,7 @@ class MainWindow(QMainWindow):
         self.portfolios_page.refresh()
 
     def closeEvent(self, event) -> None:
-        self.manager.stop()
+        self.facade.cerrar()
         event.accept()
 ```
 
@@ -2174,9 +2381,9 @@ from PySide6.QtWidgets import QLabel, QTableWidget, QTableWidgetItem, QVBoxLayou
 
 
 class MarketPage(QWidget):
-    def __init__(self, market_service) -> None:
+    def __init__(self, facade) -> None:
         super().__init__()
-        self.market_service = market_service
+        self.facade = facade
         self.previous: dict[tuple[str, str], float] = {}
         self._build()
 
@@ -2199,7 +2406,7 @@ class MarketPage(QWidget):
         layout.addWidget(self.table, 1)
 
     def refresh(self) -> None:
-        rows = self.market_service.tabla_mercado(self.previous)
+        rows = self.facade.tabla_mercado(self.previous)
         self.table.setRowCount(len(rows))
         current: dict[tuple[str, str], float] = {}
         for row_index, row in enumerate(rows):
@@ -2257,11 +2464,9 @@ class OrdersPage(QWidget):
         "Total",
     ]
 
-    def __init__(self, market_service, portfolio_service, trading_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
-        self.portfolio_service = portfolio_service
-        self.trading_service = trading_service
+        self.facade = facade
         self.on_change = on_change
         self._build()
         self._refresh_combos()
@@ -2346,13 +2551,13 @@ class OrdersPage(QWidget):
         self.exchange_combo.blockSignals(False)
 
         self.portfolio_combo.clear()
-        self.portfolio_combo.addItems([p.nombre for p in self.portfolio_service.listar_carteras()])
+        self.portfolio_combo.addItems([p.nombre for p in self.facade.listar_carteras()])
         portfolio_index = self.portfolio_combo.findText(current_portfolio)
         if portfolio_index >= 0:
             self.portfolio_combo.setCurrentIndex(portfolio_index)
 
         self.asset_combo.clear()
-        self.asset_combo.addItems([a.nombre for a in self.market_service.obtener_activos()])
+        self.asset_combo.addItems([a.nombre for a in self.facade.obtener_activos()])
         asset_index = self.asset_combo.findText(current_asset)
         if asset_index >= 0:
             self.asset_combo.setCurrentIndex(asset_index)
@@ -2361,7 +2566,7 @@ class OrdersPage(QWidget):
         type_text = self.type_combo.currentText()
         target = None if type_text == "MARKET" else self.target.value()
         try:
-            platform, registro = self.trading_service.crear_orden(
+            registro = self.facade.crear_y_ejecutar_orden(
                 type_text,
                 self.side_combo.currentText(),
                 self.exchange_combo.currentText(),
@@ -2370,7 +2575,6 @@ class OrdersPage(QWidget):
                 self.portfolio_combo.currentText(),
                 target,
             )
-            self.trading_service.ejecutar_orden(platform, registro)
         except (ValueError, KeyError) as exc:
             QMessageBox.warning(self, "Orden rechazada", str(exc))
             return
@@ -2385,7 +2589,7 @@ class OrdersPage(QWidget):
 
     def refresh(self) -> None:
         self._refresh_combos()
-        history = self.trading_service.historial()
+        history = self.facade.historial_ordenes()
         self.table.setRowCount(len(history))
         for row, order in enumerate(history):
             values = order.to_row()
@@ -2419,10 +2623,9 @@ from PySide6.QtWidgets import (
 
 
 class PortfoliosPage(QWidget):
-    def __init__(self, market_service, portfolio_service, on_change) -> None:
+    def __init__(self, facade, on_change) -> None:
         super().__init__()
-        self.market_service = market_service
-        self.portfolio_service = portfolio_service
+        self.facade = facade
         self.on_change = on_change
         # Controla si los campos de riesgo contienen cambios que todavía
         # no deben ser reemplazados por el refresco periódico de la UI.
@@ -2514,7 +2717,7 @@ class PortfoliosPage(QWidget):
 
     def clone(self) -> None:
         try:
-            clone = self.portfolio_service.clonar_cartera(self.clone_name.text(), self.clone_pct.value())
+            clone = self.facade.clonar_cartera(self.clone_name.text(), self.clone_pct.value())
         except ValueError as exc:
             QMessageBox.warning(self, "No se pudo clonar", str(exc))
             return
@@ -2553,7 +2756,7 @@ class PortfoliosPage(QWidget):
         # Cambiar de cartera significa trabajar con la configuración de esa
         # cartera. Los cambios no guardados se descartan únicamente al
         # seleccionar otra cartera; el refresco automático nunca los pisa.
-        cartera = self.portfolio_service.obtener_cartera(name)
+        cartera = self.facade.obtener_cartera(name)
         self._set_risk_fields_from_model(cartera)
         self._refresh_table(cartera)
 
@@ -2564,7 +2767,7 @@ class PortfoliosPage(QWidget):
             return
 
         try:
-            self.portfolio_service.configurar_riesgo(
+            self.facade.configurar_riesgo(
                 name,
                 self.exposure.value(),
                 self.loss.value(),
@@ -2588,7 +2791,7 @@ class PortfoliosPage(QWidget):
         name = self.portfolio_combo.currentText()
         if not name:
             return
-        cartera = self.portfolio_service.obtener_cartera(name)
+        cartera = self.facade.obtener_cartera(name)
 
         # Durante la edición, el refresco periódico solo actualiza la información
         # calculada. No vuelve a escribir los controles con los valores del modelo.
@@ -2600,7 +2803,7 @@ class PortfoliosPage(QWidget):
 
     def _refresh_table(self, cartera) -> None:
         prices = {
-            position.nombre: self.market_service.obtener_precio(position.nombre, "A")
+            position.nombre: self.facade.obtener_precio(position.nombre, "A")
             for position in cartera.activos
         }
         total = cartera.valor_total_usd(prices)
@@ -2608,7 +2811,7 @@ class PortfoliosPage(QWidget):
         self.balance_label.setText(
             f"Saldo: ${cartera.saldo_usd:,.2f} USD  •  Activos: ${activos_valor:,.2f} USD  •  Total: ${total:,.2f} USD"
         )
-        riesgo = self.portfolio_service.evaluar_riesgo(cartera, prices)
+        riesgo = self.facade.evaluar_riesgo(cartera, prices)
         self.risk_label.setText(
             f"Exposición: {riesgo['exposicion_pct']:.2f}%  •  Drawdown: {riesgo['drawdown_pct']:.2f}%  •  SL {cartera.stop_loss:.2f}%  •  TP {cartera.take_profit:.2f}%"
         )
@@ -2633,7 +2836,7 @@ class PortfoliosPage(QWidget):
         current = self.portfolio_combo.currentText()
         self.portfolio_combo.blockSignals(True)
         self.portfolio_combo.clear()
-        self.portfolio_combo.addItems([p.nombre for p in self.portfolio_service.listar_carteras()])
+        self.portfolio_combo.addItems([p.nombre for p in self.facade.listar_carteras()])
         if current:
             index = self.portfolio_combo.findText(current)
             if index >= 0:
@@ -2782,4 +2985,29 @@ def test_decorator_adds_market_audit_without_changing_price():
     assert audit["exchange"] == "A"
     assert audit["consultas"] == 1
     assert audit["ultima_consulta"]["activo"] == "Bitcoin"
+
+
+def test_facade_unifies_market_portfolio_and_order_flow():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+
+    assert any(asset.nombre == "Bitcoin" for asset in facade.obtener_activos())
+    assert any(portfolio.nombre == "Cartera Principal" for portfolio in facade.listar_carteras())
+
+    registro = facade.crear_y_ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert registro.total > 0
+    assert facade.historial_ordenes()[0].id == registro.id
+    assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None
 ```
