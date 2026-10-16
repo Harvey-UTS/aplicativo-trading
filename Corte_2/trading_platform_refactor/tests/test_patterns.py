@@ -4,8 +4,10 @@ from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB
 from patterns.bridge import ExchangeAExecutor, ExchangeBExecutor, OrdenLimit, OrdenMarket
 from patterns.composite import GrupoActivos, PosicionActivo, construir_composite
 from patterns.decorator import MercadoConAuditoria
+from patterns.flyweight import ParMercadoFactory
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
+from patterns.proxy import MercadoProxy
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -159,3 +161,74 @@ def test_facade_unifies_market_portfolio_and_order_flow():
     assert registro.total > 0
     assert facade.historial_ordenes()[0].id == registro.id
     assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None
+
+
+def test_flyweight_reuses_normalized_market_pairs():
+    ParMercadoFactory.limpiar_cache()
+    try:
+        btc_a = ParMercadoFactory.obtener("btc", "usdt")
+        btc_b = ParMercadoFactory.obtener("BTC", "USDT")
+        eth = ParMercadoFactory.obtener("ETH", "USDT")
+
+        assert btc_a is btc_b
+        assert btc_a is not eth
+        assert btc_a.par == "BTC/USDT"
+        assert ParMercadoFactory.cantidad_compartidos() == 2
+        for invalid_symbol in (None, "", "BTC/USDT"):
+            try:
+                ParMercadoFactory.obtener(invalid_symbol, "USDT")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("El Flyweight debe rechazar símbolos inválidos")
+    finally:
+        ParMercadoFactory.limpiar_cache()
+
+
+def test_proxy_validates_and_lazily_creates_market_only_once():
+    from patterns.abstract_factory import Mercado
+
+    class MercadoFalso(Mercado):
+        def consultar_precio(self, activo):
+            return 125.0
+
+    creados = []
+
+    def crear_mercado():
+        mercado = MercadoFalso()
+        creados.append(mercado)
+        return mercado
+
+    proxy = MercadoProxy(crear_mercado)
+    assert proxy.inicializado is False
+
+    try:
+        proxy.consultar_precio("Bitcoin")
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("El proxy debe rechazar objetos que no sean ActivoDigital")
+
+    assert creados == []
+    activo = Criptomoneda("Bitcoin", 60000, "BTC")
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.inicializado is True
+    assert len(creados) == 1
+
+
+def test_market_service_integrates_proxy_before_audited_adapter():
+    from patterns.decorator import MercadoConAuditoria
+    from services.market_service import MarketService
+
+    ExchangeConnectionManager.reset_for_tests()
+    service = MarketService()
+    mercado_decorado = service._markets["A"]
+    assert isinstance(mercado_decorado, MercadoConAuditoria)
+    proxy = mercado_decorado.mercado
+    assert isinstance(proxy, MercadoProxy)
+    assert proxy.inicializado is False
+
+    assert service.obtener_precio("Bitcoin", "A") == 60000.0
+    assert proxy.inicializado is True
+    assert service.obtener_auditoria_mercado("A")["consultas"] == 1

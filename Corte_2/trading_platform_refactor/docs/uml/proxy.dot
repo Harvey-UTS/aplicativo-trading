@@ -1,0 +1,21 @@
+digraph ProxyUML {
+  graph [rankdir=TB, bgcolor="white", pad="0.15", nodesep="0.35", ranksep="0.38", splines=ortho, fontname="Liberation Sans", label="Proxy · Acceso diferido y validado al mercado", labelloc=t, fontsize=16, fontcolor="#312e81"];
+  node [shape=record, style="rounded,filled", color="#8b5cf6", fillcolor="#f5f3ff", fontname="Liberation Sans", fontsize=10.5, margin="0.10,0.07", penwidth=1.15];
+  edge [fontname="Liberation Sans", fontsize=9.5, color="#6d5ba6", fontcolor="#4c1d95", arrowsize=0.72, penwidth=1.05];
+
+  service [label="{MarketService|+ obtener_precio(...) }", fillcolor="#f3e8ff"];
+  audit [label="{MercadoConAuditoria| - mercado: Mercado\l|+ consultar_precio(activo)\l+ resumen()\l}", fillcolor="#ede9fe"];
+  proxy [label="{MercadoProxy| - _creador_mercado\l - _mercado_real: Mercado?\l|+ consultar_precio(activo)\l+ inicializado\l}", fillcolor="#ddd6fe", penwidth=1.5];
+  interface [label="{Mercado (interfaz)|+ consultar_precio(activo): float}", fillcolor="#f5f3ff"];
+  adapterA [label="{ExchangeAAdapter|+ consultar_precio(activo)}"];
+  adapterB [label="{ExchangeBAdapter|+ consultar_precio(activo)}"];
+  adapterC [label="{ExchangeCAdapter|+ consultar_precio(activo)}"];
+
+  service -> audit [label="consulta"];
+  audit -> proxy [label="envuelve"];
+  proxy -> interface [label="implementa", arrowhead=empty];
+  {rank=same; adapterA; adapterB; adapterC;}
+  interface -> adapterA [dir=back, label="implementa"];
+  interface -> adapterB [dir=back];
+  interface -> adapterC [dir=back];
+}

@@ -1,0 +1,20 @@
+digraph FlyweightUML {
+  graph [rankdir=TB, bgcolor="white", pad="0.15", nodesep="0.35", ranksep="0.38", splines=ortho, fontname="Liberation Sans", label="Flyweight · Reutilización de pares de mercado", labelloc=t, fontsize=16, fontcolor="#312e81"];
+  node [shape=record, style="rounded,filled", color="#8b5cf6", fillcolor="#f5f3ff", fontname="Liberation Sans", fontsize=11, margin="0.12,0.08", penwidth=1.2];
+  edge [fontname="Liberation Sans", fontsize=10, color="#6d5ba6", fontcolor="#4c1d95", arrowsize=0.75, penwidth=1.1];
+
+  activo [label="{ActivoDigital|+ simbolo: str}"];
+  factory [label="{ParMercadoFactory| - _flyweights: dict\l - _lock: RLock\l|+ obtener(base, cotizacion)\l+ cantidad_compartidos()\l}", fillcolor="#ede9fe", penwidth=1.5];
+  flyweight [label="{ParMercadoFlyweight|+ simbolo_base: str\l+ simbolo_cotizacion: str\l+ par: str\l}", fillcolor="#ddd6fe", penwidth=1.5];
+  adapterA [label="{ExchangeAAdapter|+ consultar_precio(activo)}"];
+  adapterB [label="{ExchangeBAdapter|+ consultar_precio(activo)}"];
+  adapterC [label="{ExchangeCAdapter|+ consultar_precio(activo)}"];
+
+  {rank=same; adapterA; adapterB; adapterC;}
+  {rank=same; activo; factory;}
+  adapterA -> factory [label="obtiene par"];
+  adapterB -> factory [label="obtiene par"];
+  adapterC -> factory [label="obtiene par"];
+  activo -> factory [style=dashed, label="símbolo", constraint=false];
+  factory -> flyweight [label="crea / reutiliza", arrowhead=odiamond, penwidth=1.4];
+}

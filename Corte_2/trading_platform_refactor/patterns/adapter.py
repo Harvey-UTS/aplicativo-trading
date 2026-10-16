@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from models.asset import ActivoDigital
 from patterns.abstract_factory import Mercado
+from patterns.flyweight import ParMercadoFactory
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -47,13 +48,13 @@ class ApiExchangeC:
         return {"ticker": {"pair": par, "last": price, "currency": "USDT"}}
 
 
+def _market_pair_for_asset(activo: ActivoDigital):
+    """Obtiene el estado intrínseco compartido del par base/cotización."""
+    return ParMercadoFactory.obtener(activo.simbolo, "USDT")
+
+
 def _pair_for_asset(activo: ActivoDigital) -> str:
-    return f"{activo.simbolo.upper()}/USDT"
-
-
-def _split_pair(pair: str) -> tuple[str, str]:
-    base, quote = pair.split("/", 1)
-    return base, quote
+    return _market_pair_for_asset(activo).par
 
 
 class ExchangeAAdapter(Mercado):
@@ -72,8 +73,8 @@ class ExchangeBAdapter(Mercado):
         self.api = api or ApiExchangeB()
 
     def consultar_precio(self, activo: ActivoDigital) -> float:
-        base, quote = _split_pair(_pair_for_asset(activo))
-        response = self.api.fetch_market(base, quote)
+        par = _market_pair_for_asset(activo)
+        response = self.api.fetch_market(par.simbolo_base, par.simbolo_cotizacion)
         return float(response["data"]["amount"])
 
 

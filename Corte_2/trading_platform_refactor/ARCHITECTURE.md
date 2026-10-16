@@ -36,6 +36,8 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | Nuevo patrón | `patterns/composite.py` + `services/portfolio_service.py` | agrupación jerárquica de posiciones |
 | Nuevo patrón | `patterns/decorator.py` + `services/market_service.py` | trazabilidad de consultas de mercado |
 | Nuevo patrón | `patterns/facade.py` + `ui/main_window.py` y páginas | punto de acceso unificado a mercado, órdenes y carteras |
+| Nuevo patrón | `patterns/flyweight.py` + `patterns/adapter.py` | reutilización de metadata inmutable de pares de mercado |
+| Nuevo patrón | `patterns/proxy.py` + `services/market_service.py` | acceso validado e inicialización diferida de adapters |
 
 ## Singleton
 
@@ -122,10 +124,16 @@ de instanciar o coordinar directamente los servicios. `crear_y_ejecutar_orden()`
 encapsula la secuencia habitual de construcción y ejecución, sin duplicar la
 lógica de validación ni los patrones que ya utilizan los servicios.
 
+## Flyweight
+`ParMercadoFactory` mantiene una caché thread-safe de objetos inmutables `ParMercadoFlyweight`, identificados por símbolo base y divisa de cotización. Los tres adapters obtienen el par normalizado desde la fábrica; la selección del exchange y el precio continúan siendo estado externo al flyweight.
+
+## Proxy
+`MarketService` construye un `MercadoProxy` por exchange y lo envuelve con `MercadoConAuditoria`. El proxy valida el activo y crea el adapter real durante la primera consulta válida. Después reutiliza el target ya creado; el Decorator registra las consultas sin asumir la responsabilidad de inicialización.
+
 ## Servicios
 
 ### `MarketService`
-Controla el catálogo de activos, Factory Method, fábricas de mercado, adapters y caché Singleton.
+Controla el catálogo de activos, Factory Method, fábricas de mercado, Flyweight, Proxy, adapters, Decorator y caché Singleton.
 
 ### `TradingService`
 Construye y ejecuta órdenes, valida riesgo/capital, actualiza carteras y conserva historial.

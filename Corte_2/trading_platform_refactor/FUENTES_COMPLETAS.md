@@ -766,6 +766,7 @@ from __future__ import annotations
 
 from models.asset import ActivoDigital
 from patterns.abstract_factory import Mercado
+from patterns.flyweight import ParMercadoFactory
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -809,13 +810,13 @@ class ApiExchangeC:
         return {"ticker": {"pair": par, "last": price, "currency": "USDT"}}
 
 
+def _market_pair_for_asset(activo: ActivoDigital):
+    """Obtiene el estado intrínseco compartido del par base/cotización."""
+    return ParMercadoFactory.obtener(activo.simbolo, "USDT")
+
+
 def _pair_for_asset(activo: ActivoDigital) -> str:
-    return f"{activo.simbolo.upper()}/USDT"
-
-
-def _split_pair(pair: str) -> tuple[str, str]:
-    base, quote = pair.split("/", 1)
-    return base, quote
+    return _market_pair_for_asset(activo).par
 
 
 class ExchangeAAdapter(Mercado):
@@ -834,8 +835,8 @@ class ExchangeBAdapter(Mercado):
         self.api = api or ApiExchangeB()
 
     def consultar_precio(self, activo: ActivoDigital) -> float:
-        base, quote = _split_pair(_pair_for_asset(activo))
-        response = self.api.fetch_market(base, quote)
+        par = _market_pair_for_asset(activo)
+        response = self.api.fetch_market(par.simbolo_base, par.simbolo_cotizacion)
         return float(response["data"]["amount"])
 
 
@@ -1167,6 +1168,133 @@ class TradingPlatformFacade:
 
     def historial_ordenes(self) -> list[OrdenRegistro]:
         return self._trading.historial()
+```
+
+## `patterns/flyweight.py`
+
+```python
+"""Flyweight: reutiliza la metadata inmutable de pares de mercado."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from threading import RLock
+
+
+@dataclass(frozen=True, slots=True)
+class ParMercadoFlyweight:
+    """Estado intrínseco compartido para un par base/cotización."""
+
+    simbolo_base: str
+    simbolo_cotizacion: str
+    par: str
+
+
+class ParMercadoFactory:
+    """Mantiene un registro compartido de pares de mercado normalizados.
+
+    La clave está formada por el símbolo base y la divisa de cotización. Así,
+    los adapters de distintos exchanges reutilizan el mismo objeto inmutable
+    para, por ejemplo, BTC/USDT, sin compartir datos variables del exchange.
+    """
+
+    _flyweights: dict[tuple[str, str], ParMercadoFlyweight] = {}
+    _lock = RLock()
+
+    @classmethod
+    def obtener(
+        cls,
+        simbolo_base: str,
+        simbolo_cotizacion: str = "USDT",
+    ) -> ParMercadoFlyweight:
+        if simbolo_base is None or simbolo_cotizacion is None:
+            raise ValueError("Los símbolos base y de cotización son obligatorios.")
+        base = str(simbolo_base).strip().upper()
+        cotizacion = str(simbolo_cotizacion).strip().upper()
+        if not base or not cotizacion:
+            raise ValueError("Los símbolos base y de cotización son obligatorios.")
+        if "/" in base or "/" in cotizacion:
+            raise ValueError("Los símbolos no deben contener '/'.")
+
+        clave = (base, cotizacion)
+        with cls._lock:
+            flyweight = cls._flyweights.get(clave)
+            if flyweight is None:
+                flyweight = ParMercadoFlyweight(
+                    simbolo_base=base,
+                    simbolo_cotizacion=cotizacion,
+                    par=f"{base}/{cotizacion}",
+                )
+                cls._flyweights[clave] = flyweight
+            return flyweight
+
+    @classmethod
+    def cantidad_compartidos(cls) -> int:
+        """Devuelve la cantidad de pares únicos que mantiene el registro."""
+        with cls._lock:
+            return len(cls._flyweights)
+
+    @classmethod
+    def limpiar_cache(cls) -> None:
+        """Limpia el registro compartido; se utiliza principalmente en pruebas."""
+        with cls._lock:
+            cls._flyweights.clear()
+```
+
+## `patterns/proxy.py`
+
+```python
+"""Proxy virtual: controla y difiere la creación del adapter de mercado."""
+
+from __future__ import annotations
+
+from threading import RLock
+from typing import Callable
+
+from models.asset import ActivoDigital
+from patterns.abstract_factory import Mercado
+
+
+class MercadoProxy(Mercado):
+    """Intermediario compatible con ``Mercado`` que inicializa el target al usarlo.
+
+    La fábrica del adapter se ejecuta solo ante la primera consulta válida. El
+    proxy también valida el tipo de activo antes de crear o invocar el objeto
+    real. El bloqueo protege la inicialización cuando hay consultas concurrentes.
+    """
+
+    def __init__(self, creador_mercado: Callable[[], Mercado]) -> None:
+        if not callable(creador_mercado):
+            raise TypeError("El creador del mercado debe ser invocable.")
+        self._creador_mercado: Callable[[], Mercado] | None = creador_mercado
+        self._mercado_real: Mercado | None = None
+        self._lock = RLock()
+
+    @property
+    def inicializado(self) -> bool:
+        """Indica si el adapter real ya fue creado."""
+        with self._lock:
+            return self._mercado_real is not None
+
+    def _obtener_mercado_real(self) -> Mercado:
+        with self._lock:
+            if self._mercado_real is None:
+                if self._creador_mercado is None:
+                    raise RuntimeError("No hay un creador disponible para el mercado.")
+                mercado = self._creador_mercado()
+                if not isinstance(mercado, Mercado):
+                    raise TypeError("El creador debe devolver una implementación de Mercado.")
+                self._mercado_real = mercado
+                self._creador_mercado = None
+            return self._mercado_real
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        if not isinstance(activo, ActivoDigital):
+            raise TypeError("La consulta requiere un objeto ActivoDigital válido.")
+        if not str(activo.simbolo).strip():
+            raise ValueError("El activo debe tener un símbolo válido.")
+        mercado = self._obtener_mercado_real()
+        return float(mercado.consultar_precio(activo))
 ```
 
 ## `models/__init__.py`
@@ -1530,6 +1658,7 @@ from models.asset import ActivoDigital
 from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB, FabricaExchangeC
 from patterns.decorator import MercadoConAuditoria
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT, CreadorToken
+from patterns.proxy import MercadoProxy
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -1544,7 +1673,7 @@ class MarketRow:
 
 
 class MarketService:
-    """Coordina Factory Method, Abstract Factory, Adapter y Singleton."""
+    """Coordina Factory Method, Abstract Factory, Adapter, Flyweight, Proxy y Singleton."""
 
     USD_COP = 4000.0
 
@@ -1556,7 +1685,10 @@ class MarketService:
             "C": FabricaExchangeC(),
         }
         self._markets = {
-            codigo: MercadoConAuditoria(factory.crear_mercado(), codigo)
+            codigo: MercadoConAuditoria(
+                MercadoProxy(lambda factory=factory: factory.crear_mercado()),
+                codigo,
+            )
             for codigo, factory in self.factories.items()
         }
         self.creators = {
@@ -2846,6 +2978,12 @@ class PortfoliosPage(QWidget):
         self.load_selected()
 ```
 
+## `tests/__init__.py`
+
+```python
+
+```
+
 ## `tests/test_patterns.py`
 
 ```python
@@ -2855,8 +2993,10 @@ from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB
 from patterns.bridge import ExchangeAExecutor, ExchangeBExecutor, OrdenLimit, OrdenMarket
 from patterns.composite import GrupoActivos, PosicionActivo, construir_composite
 from patterns.decorator import MercadoConAuditoria
+from patterns.flyweight import ParMercadoFactory
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
+from patterns.proxy import MercadoProxy
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -3010,4 +3150,75 @@ def test_facade_unifies_market_portfolio_and_order_flow():
     assert registro.total > 0
     assert facade.historial_ordenes()[0].id == registro.id
     assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None
+
+
+def test_flyweight_reuses_normalized_market_pairs():
+    ParMercadoFactory.limpiar_cache()
+    try:
+        btc_a = ParMercadoFactory.obtener("btc", "usdt")
+        btc_b = ParMercadoFactory.obtener("BTC", "USDT")
+        eth = ParMercadoFactory.obtener("ETH", "USDT")
+
+        assert btc_a is btc_b
+        assert btc_a is not eth
+        assert btc_a.par == "BTC/USDT"
+        assert ParMercadoFactory.cantidad_compartidos() == 2
+        for invalid_symbol in (None, "", "BTC/USDT"):
+            try:
+                ParMercadoFactory.obtener(invalid_symbol, "USDT")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("El Flyweight debe rechazar símbolos inválidos")
+    finally:
+        ParMercadoFactory.limpiar_cache()
+
+
+def test_proxy_validates_and_lazily_creates_market_only_once():
+    from patterns.abstract_factory import Mercado
+
+    class MercadoFalso(Mercado):
+        def consultar_precio(self, activo):
+            return 125.0
+
+    creados = []
+
+    def crear_mercado():
+        mercado = MercadoFalso()
+        creados.append(mercado)
+        return mercado
+
+    proxy = MercadoProxy(crear_mercado)
+    assert proxy.inicializado is False
+
+    try:
+        proxy.consultar_precio("Bitcoin")
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("El proxy debe rechazar objetos que no sean ActivoDigital")
+
+    assert creados == []
+    activo = Criptomoneda("Bitcoin", 60000, "BTC")
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.inicializado is True
+    assert len(creados) == 1
+
+
+def test_market_service_integrates_proxy_before_audited_adapter():
+    from patterns.decorator import MercadoConAuditoria
+    from services.market_service import MarketService
+
+    ExchangeConnectionManager.reset_for_tests()
+    service = MarketService()
+    mercado_decorado = service._markets["A"]
+    assert isinstance(mercado_decorado, MercadoConAuditoria)
+    proxy = mercado_decorado.mercado
+    assert isinstance(proxy, MercadoProxy)
+    assert proxy.inicializado is False
+
+    assert service.obtener_precio("Bitcoin", "A") == 60000.0
+    assert proxy.inicializado is True
+    assert service.obtener_auditoria_mercado("A")["consultas"] == 1
 ```

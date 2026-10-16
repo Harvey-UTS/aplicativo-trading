@@ -8,6 +8,7 @@ from models.asset import ActivoDigital
 from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB, FabricaExchangeC
 from patterns.decorator import MercadoConAuditoria
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT, CreadorToken
+from patterns.proxy import MercadoProxy
 from patterns.singleton import ExchangeConnectionManager
 
 
@@ -22,7 +23,7 @@ class MarketRow:
 
 
 class MarketService:
-    """Coordina Factory Method, Abstract Factory, Adapter y Singleton."""
+    """Coordina Factory Method, Abstract Factory, Adapter, Flyweight, Proxy y Singleton."""
 
     USD_COP = 4000.0
 
@@ -34,7 +35,10 @@ class MarketService:
             "C": FabricaExchangeC(),
         }
         self._markets = {
-            codigo: MercadoConAuditoria(factory.crear_mercado(), codigo)
+            codigo: MercadoConAuditoria(
+                MercadoProxy(lambda factory=factory: factory.crear_mercado()),
+                codigo,
+            )
             for codigo, factory in self.factories.items()
         }
         self.creators = {

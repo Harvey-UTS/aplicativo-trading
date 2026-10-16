@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y diez patrones GoF.
+en una arquitectura modular con PySide6, servicios y doce patrones GoF.
 
 ## Estructura
 
@@ -19,7 +19,9 @@ trading_platform/
 │   ├── adapter.py
 │   ├── composite.py
 │   ├── decorator.py
-│   └── facade.py
+│   ├── facade.py
+│   ├── flyweight.py
+│   └── proxy.py
 ├── services/
 │   ├── trading_service.py
 │   ├── market_service.py
@@ -36,6 +38,12 @@ trading_platform/
 │   ├── portfolios_page.py
 │   ├── market_page.py
 │   └── styles.qss
+├── docs/
+│   └── uml/
+│       ├── flyweight.dot
+│       ├── flyweight.png
+│       ├── proxy.dot
+│       └── proxy.png
 ├── resources/
 │   ├── icons/
 │   └── images/
@@ -133,6 +141,13 @@ las páginas; así la interfaz no instancia ni coordina los servicios por separa
 El método `crear_y_ejecutar_orden()` reúne la creación y ejecución de una orden en
 una operación de alto nivel, mientras la validación de riesgo, el Builder y los
 patrones especializados permanecen en sus servicios originales.
+
+
+### Flyweight — `ParMercadoFlyweight` y `ParMercadoFactory`
+La fábrica conserva una instancia inmutable por combinación de símbolo base y moneda de cotización. Los adapters de los exchanges reutilizan el mismo objeto para pares como `BTC/USDT`, mientras que cada adapter sigue consultando los precios de su propio exchange. El registro compartido está protegido frente a accesos concurrentes.
+
+### Proxy — `MercadoProxy`
+El servicio de mercado coloca un proxy virtual antes de cada adapter y mantiene la misma interfaz `Mercado.consultar_precio(activo)`. El proxy valida el tipo de activo y crea el adapter real solo cuando llega la primera consulta válida; las siguientes llamadas reutilizan el objeto inicializado. `MercadoConAuditoria` permanece por fuera para registrar las consultas completadas, manteniendo separadas la inicialización diferida y la trazabilidad.
 
 ## Capas
 
