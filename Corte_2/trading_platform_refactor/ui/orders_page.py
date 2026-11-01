@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from services.order_pattern_service import ServicioDespachoOrdenes
+
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -38,6 +40,7 @@ class OrdersPage(QWidget):
         super().__init__()
         self.facade = facade
         self.on_change = on_change
+        self._despachador_ordenes = ServicioDespachoOrdenes(facade)
         self._build()
         self._refresh_combos()
         self.refresh()
@@ -50,7 +53,7 @@ class OrdersPage(QWidget):
         title = QLabel("Órdenes")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
-        subtitle = QLabel("Bridge separa tipo de orden y exchange; el formulario nunca conoce sus clases concretas")
+        subtitle = QLabel("Chain of Responsibility valida la solicitud y Command encapsula su despacho; Bridge desacopla el tipo de orden del exchange")
         subtitle.setObjectName("pageSubtitle")
         layout.addWidget(subtitle)
 
@@ -136,7 +139,7 @@ class OrdersPage(QWidget):
         type_text = self.type_combo.currentText()
         target = None if type_text == "MARKET" else self.target.value()
         try:
-            registro = self.facade.crear_y_ejecutar_orden(
+            registro = self._despachador_ordenes.ejecutar_orden(
                 type_text,
                 self.side_combo.currentText(),
                 self.exchange_combo.currentText(),

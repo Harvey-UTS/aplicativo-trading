@@ -1,0 +1,28 @@
+digraph ChainOfResponsibility {
+  graph [rankdir=TB, bgcolor="white", pad="0.18", nodesep="0.28", ranksep="0.34", splines=ortho];
+  node [shape=record, style="rounded,filled", fillcolor="#f2edff", color="#8b5cf6", fontname="Arial", fontsize=12, margin="0.18,0.11"];
+  edge [color="#7652c8", fontname="Arial", fontsize=10, arrowsize=0.85];
+
+  Context [label="{ContextoValidacionOrden|tipo, lado, exchange · activo\lcantidad, cartera · precio_objetivo\l}"];
+  Chain [label="{CadenaValidacionOrden|+ validar(contexto): ResultadoValidacion\l}"];
+  H1 [label="{ValidarSolicitudOrden|+ validar(contexto)\l}"];
+  H2 [label="{ValidarActivoCantidad|+ validar(contexto)\l}"];
+  H3 [label="{ValidarCarteraOrden|+ validar(contexto)\l}"];
+  H4 [label="{ValidarPrecioObjetivo|+ validar(contexto)\l}"];
+  Result [label="{ResultadoValidacion|valido: bool · mensaje: str\l}"];
+  Base [label="{ManejadorValidacionOrden (abstracto)| - siguiente: ManejadorValidacionOrden\l|+ enlazar() · manejar() · validar()\l}"];
+
+  {rank=same; H1; H2;}
+  {rank=same; H3; H4;}
+  Dispatcher -> Context [label="construye"];
+  Context -> Chain [label="entrada"];
+  Chain -> H1 [label="inicia"];
+  H1 -> H2 [label="válido", constraint=false];
+  H2 -> H3 [label="válido"];
+  H3 -> H4 [label="válido", constraint=false];
+  H4 -> Result [label="resultado"];
+  H1 -> Base [style=dashed, arrowhead="empty", constraint=false, label="hereda"];
+  H2 -> Base [style=dashed, arrowhead="empty", constraint=false];
+  H3 -> Base [style=dashed, arrowhead="empty", constraint=false];
+  H4 -> Base [style=dashed, arrowhead="empty", constraint=false];
+}

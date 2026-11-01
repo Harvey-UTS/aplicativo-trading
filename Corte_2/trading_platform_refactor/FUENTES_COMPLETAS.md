@@ -1297,6 +1297,264 @@ class MercadoProxy(Mercado):
         return float(mercado.consultar_precio(activo))
 ```
 
+## `patterns/command.py`
+
+```python
+"""Command: encapsula y despacha solicitudes de órdenes simuladas."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Protocol
+
+from models.order import OrdenRegistro
+from patterns.builder import PlataformaTrading
+
+
+class ReceptorOrdenes(Protocol):
+    """Contrato mínimo del servicio que recibe la operación encapsulada."""
+
+    def crear_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> tuple[PlataformaTrading, OrdenRegistro]: ...
+
+    def ejecutar_orden(
+        self,
+        plataforma: PlataformaTrading,
+        registro: OrdenRegistro,
+    ) -> OrdenRegistro: ...
+
+
+class ComandoOrden(ABC):
+    """Abstracción de una solicitud de operación ejecutable."""
+
+    @abstractmethod
+    def ejecutar(self) -> OrdenRegistro:
+        """Ejecuta la solicitud y devuelve su registro de operación."""
+
+
+class ComandoEjecutarOrden(ComandoOrden):
+    """Encapsula los parámetros y la ejecución completa de una orden."""
+
+    def __init__(
+        self,
+        receptor: ReceptorOrdenes,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> None:
+        self._receptor = receptor
+        self._tipo_orden = tipo_orden
+        self._lado = lado
+        self._exchange = exchange
+        self._activo_nombre = activo_nombre
+        self._cantidad = float(cantidad)
+        self._cartera_nombre = cartera_nombre
+        self._precio_objetivo = precio_objetivo
+        self._resultado: OrdenRegistro | None = None
+
+    @property
+    def resultado(self) -> OrdenRegistro | None:
+        """Registro producido por el comando, si ya fue ejecutado."""
+        return self._resultado
+
+    def ejecutar(self) -> OrdenRegistro:
+        # El mismo objeto de comando representa una sola solicitud; repetir su
+        # ejecución devuelve el resultado previo y no genera otra operación.
+        if self._resultado is not None:
+            return self._resultado
+
+        plataforma, registro = self._receptor.crear_orden(
+            self._tipo_orden,
+            self._lado,
+            self._exchange,
+            self._activo_nombre,
+            self._cantidad,
+            self._cartera_nombre,
+            self._precio_objetivo,
+        )
+        self._resultado = self._receptor.ejecutar_orden(plataforma, registro)
+        return self._resultado
+
+
+class InvocadorOrdenes:
+    """Centraliza el despacho y mantiene el historial de comandos completados."""
+
+    def __init__(self) -> None:
+        self._historial: list[ComandoOrden] = []
+
+    def ejecutar(self, comando: ComandoOrden) -> OrdenRegistro:
+        resultado = comando.ejecutar()
+        if not any(registrado is comando for registrado in self._historial):
+            self._historial.append(comando)
+        return resultado
+
+    def historial(self) -> tuple[ComandoOrden, ...]:
+        """Devuelve una vista inmutable del historial de comandos despachados."""
+        return tuple(self._historial)
+
+    @property
+    def cantidad_ejecutados(self) -> int:
+        return len(self._historial)
+```
+
+## `patterns/chain_of_responsibility.py`
+
+```python
+"""Cadena de validación previa para las órdenes simuladas."""
+
+from __future__ import annotations
+
+import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from models.asset import ActivoDigital
+from models.order import LadoOrden, TipoOrden
+from models.portfolio import Cartera
+
+
+@dataclass(frozen=True, slots=True)
+class ContextoValidacionOrden:
+    """Datos necesarios para evaluar una solicitud antes de despacharla."""
+
+    tipo_orden: TipoOrden
+    lado: LadoOrden
+    exchange: str
+    activo: ActivoDigital
+    cantidad: float
+    cartera: Cartera
+    precio_objetivo: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ResultadoValidacion:
+    """Resultado uniforme producido por la cadena de validadores."""
+
+    valido: bool
+    mensaje: str
+
+
+class ManejadorValidacionOrden(ABC):
+    """Manejador base que delega la solicitud al siguiente eslabón."""
+
+    def __init__(self, siguiente: ManejadorValidacionOrden | None = None) -> None:
+        self._siguiente = siguiente
+
+    def enlazar(self, siguiente: ManejadorValidacionOrden) -> ManejadorValidacionOrden:
+        """Conecta el siguiente manejador y permite construir la cadena."""
+        self._siguiente = siguiente
+        return siguiente
+
+    def manejar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
+        error = self.validar(contexto)
+        if error:
+            return ResultadoValidacion(False, error)
+        if self._siguiente is not None:
+            return self._siguiente.manejar(contexto)
+        return ResultadoValidacion(True, "Validación previa completada.")
+
+    @abstractmethod
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        """Devuelve un mensaje si la solicitud debe detenerse."""
+
+
+class ValidarSolicitudOrden(ManejadorValidacionOrden):
+    """Comprueba los datos generales y los valores admitidos por la plataforma."""
+
+    EXCHANGES_PERMITIDOS = frozenset({"A", "B", "C"})
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.tipo_orden, TipoOrden):
+            return "El tipo de orden no es válido."
+        if not isinstance(contexto.lado, LadoOrden):
+            return "El lado de la operación debe ser COMPRA o VENTA."
+        if str(contexto.exchange).upper().strip() not in self.EXCHANGES_PERMITIDOS:
+            return "El exchange seleccionado no está disponible. Use A, B o C."
+        try:
+            cantidad = float(contexto.cantidad)
+        except (TypeError, ValueError):
+            return "La cantidad de la orden debe ser numérica."
+        if not math.isfinite(cantidad) or cantidad <= 0:
+            return "La cantidad de la orden debe ser mayor que cero."
+        return None
+
+
+class ValidarActivoCantidad(ManejadorValidacionOrden):
+    """Verifica el activo y aplica sus reglas particulares de cantidad."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.activo, ActivoDigital):
+            return "El activo solicitado no corresponde a un activo digital válido."
+        try:
+            contexto.activo.validar_cantidad(float(contexto.cantidad))
+        except (TypeError, ValueError) as exc:
+            return str(exc)
+        return None
+
+
+class ValidarCarteraOrden(ManejadorValidacionOrden):
+    """Comprueba que la solicitud esté asociada a una cartera existente."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.cartera, Cartera):
+            return "La cartera seleccionada no está disponible."
+        if not str(contexto.cartera.nombre).strip():
+            return "La cartera debe tener un nombre válido."
+        return None
+
+
+class ValidarPrecioObjetivo(ManejadorValidacionOrden):
+    """Valida el precio objetivo requerido por las órdenes Limit y Stop Loss."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        requiere_objetivo = contexto.tipo_orden in (TipoOrden.LIMIT, TipoOrden.STOP_LOSS)
+        if requiere_objetivo and contexto.precio_objetivo is None:
+            return "La orden Limit o Stop Loss requiere un precio objetivo."
+        if contexto.precio_objetivo is not None:
+            try:
+                objetivo = float(contexto.precio_objetivo)
+            except (TypeError, ValueError):
+                return "El precio objetivo debe ser numérico."
+            if not math.isfinite(objetivo) or objetivo <= 0:
+                return "El precio objetivo debe ser mayor que cero."
+        if not requiere_objetivo and contexto.precio_objetivo is not None:
+            return "La orden Market no utiliza un precio objetivo."
+        return None
+
+
+class CadenaValidacionOrden:
+    """Punto de entrada que ejecuta los validadores en el orden establecido."""
+
+    def __init__(self, primero: ManejadorValidacionOrden | None = None) -> None:
+        self._primero = primero or self.crear_cadena_por_defecto()
+
+    @staticmethod
+    def crear_cadena_por_defecto() -> ManejadorValidacionOrden:
+        solicitud = ValidarSolicitudOrden()
+        solicitud.enlazar(ValidarActivoCantidad()).enlazar(
+            ValidarCarteraOrden()
+        ).enlazar(ValidarPrecioObjetivo())
+        return solicitud
+
+    def validar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
+        if self._primero is None:
+            return ResultadoValidacion(True, "No hay validadores configurados.")
+        return self._primero.manejar(contexto)
+```
+
+
 ## `models/__init__.py`
 
 ```python
@@ -2062,6 +2320,99 @@ class TradingService:
             raise ValueError("Tipo de orden no válido.") from exc
 ```
 
+## `services/order_pattern_service.py`
+
+```python
+"""Coordina Chain of Responsibility y Command para despachar órdenes."""
+
+from __future__ import annotations
+
+from models.order import LadoOrden, OrdenRegistro, TipoOrden
+from patterns.chain_of_responsibility import (
+    CadenaValidacionOrden,
+    ContextoValidacionOrden,
+)
+from patterns.command import ComandoEjecutarOrden, ComandoOrden, InvocadorOrdenes
+
+
+class ServicioDespachoOrdenes:
+    """Valida y despacha órdenes usando las interfaces públicas de la fachada.
+
+    Este servicio añade el flujo Command + Chain sin modificar la fachada ni
+    el servicio de trading existentes. La fachada actúa como receptor del
+    comando y continúa delegando la lógica de negocio en sus servicios actuales.
+    """
+
+    def __init__(self, fachada) -> None:
+        self._fachada = fachada
+        self._cadena_validacion = CadenaValidacionOrden()
+        self._invocador = InvocadorOrdenes()
+
+    def ejecutar_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> OrdenRegistro:
+        """Valida la solicitud y luego la ejecuta como un comando."""
+        tipo_enum = self._parse_tipo(tipo_orden)
+        try:
+            lado_enum = LadoOrden(str(lado).upper().strip())
+        except ValueError as exc:
+            raise ValueError("El lado de la operación debe ser COMPRA o VENTA.") from exc
+
+        exchange_normalizado = str(exchange).upper().strip()
+        activo = self._fachada.obtener_activo(activo_nombre)
+        cartera = self._fachada.obtener_cartera(cartera_nombre)
+        contexto = ContextoValidacionOrden(
+            tipo_orden=tipo_enum,
+            lado=lado_enum,
+            exchange=exchange_normalizado,
+            activo=activo,
+            cantidad=cantidad,
+            cartera=cartera,
+            precio_objetivo=precio_objetivo,
+        )
+        resultado = self._cadena_validacion.validar(contexto)
+        if not resultado.valido:
+            raise ValueError(resultado.mensaje)
+
+        comando = ComandoEjecutarOrden(
+            receptor=self._fachada,
+            tipo_orden=tipo_enum.value,
+            lado=lado_enum.value,
+            exchange=exchange_normalizado,
+            activo_nombre=activo.nombre,
+            cantidad=cantidad,
+            cartera_nombre=cartera.nombre,
+            precio_objetivo=precio_objetivo,
+        )
+        return self._invocador.ejecutar(comando)
+
+    def historial_comandos(self) -> tuple[ComandoOrden, ...]:
+        """Devuelve los comandos completados por este despachador."""
+        return self._invocador.historial()
+
+    @staticmethod
+    def _parse_tipo(tipo_orden: str) -> TipoOrden:
+        key = str(tipo_orden).upper().replace("-", " ").strip()
+        aliases = {
+            "MARKET": TipoOrden.MARKET,
+            "LIMIT": TipoOrden.LIMIT,
+            "STOP LOSS": TipoOrden.STOP_LOSS,
+            "STOPLOSS": TipoOrden.STOP_LOSS,
+        }
+        try:
+            return aliases[key]
+        except KeyError as exc:
+            raise ValueError("Tipo de orden no válido.") from exc
+```
+
+
 ## `ui/__init__.py`
 
 ```python
@@ -2564,6 +2915,8 @@ class MarketPage(QWidget):
 
 from __future__ import annotations
 
+from services.order_pattern_service import ServicioDespachoOrdenes
+
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -2600,6 +2953,7 @@ class OrdersPage(QWidget):
         super().__init__()
         self.facade = facade
         self.on_change = on_change
+        self._despachador_ordenes = ServicioDespachoOrdenes(facade)
         self._build()
         self._refresh_combos()
         self.refresh()
@@ -2612,7 +2966,7 @@ class OrdersPage(QWidget):
         title = QLabel("Órdenes")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
-        subtitle = QLabel("Bridge separa tipo de orden y exchange; el formulario nunca conoce sus clases concretas")
+        subtitle = QLabel("Chain of Responsibility valida la solicitud y Command encapsula su despacho; Bridge desacopla el tipo de orden del exchange")
         subtitle.setObjectName("pageSubtitle")
         layout.addWidget(subtitle)
 
@@ -2698,7 +3052,7 @@ class OrdersPage(QWidget):
         type_text = self.type_combo.currentText()
         target = None if type_text == "MARKET" else self.target.value()
         try:
-            registro = self.facade.crear_y_ejecutar_orden(
+            registro = self._despachador_ordenes.ejecutar_orden(
                 type_text,
                 self.side_combo.currentText(),
                 self.exchange_combo.currentText(),
@@ -3221,4 +3575,63 @@ def test_market_service_integrates_proxy_before_audited_adapter():
     assert service.obtener_precio("Bitcoin", "A") == 60000.0
     assert proxy.inicializado is True
     assert service.obtener_auditoria_mercado("A")["consultas"] == 1
+
+
+def test_chain_of_responsibility_rejects_invalid_request_before_command_dispatch():
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    try:
+        despachador.ejecutar_orden(
+            "MARKET",
+            "COMPRA",
+            "A",
+            "Bitcoin",
+            0,
+            "Cartera Principal",
+        )
+    except ValueError as exc:
+        assert "cantidad" in str(exc).lower()
+    else:
+        raise AssertionError("La cadena debe detener una orden con cantidad inválida")
+
+    assert despachador.historial_comandos() == ()
+    assert facade.historial_ordenes() == []
+
+
+def test_command_dispatches_order_once_and_keeps_command_history():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    registro = despachador.ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    comandos = despachador.historial_comandos()
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert len(comandos) == 1
+    assert comandos[0].resultado is registro
+
+    # Repetir el mismo comando devuelve el resultado existente y no duplica
+    # la operación en el historial ni vuelve a descontar saldo de la cartera.
+    saldo_despues_de_compra = facade.obtener_cartera("Cartera Principal").saldo_usd
+    resultado_repetido = comandos[0].ejecutar()
+    assert resultado_repetido is registro
+    assert facade.obtener_cartera("Cartera Principal").saldo_usd == saldo_despues_de_compra
+    assert len(facade.historial_ordenes()) == 1
+    assert len(despachador.historial_comandos()) == 1
 ```

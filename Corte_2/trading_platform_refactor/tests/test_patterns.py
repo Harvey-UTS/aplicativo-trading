@@ -232,3 +232,62 @@ def test_market_service_integrates_proxy_before_audited_adapter():
     assert service.obtener_precio("Bitcoin", "A") == 60000.0
     assert proxy.inicializado is True
     assert service.obtener_auditoria_mercado("A")["consultas"] == 1
+
+
+def test_chain_of_responsibility_rejects_invalid_request_before_command_dispatch():
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    try:
+        despachador.ejecutar_orden(
+            "MARKET",
+            "COMPRA",
+            "A",
+            "Bitcoin",
+            0,
+            "Cartera Principal",
+        )
+    except ValueError as exc:
+        assert "cantidad" in str(exc).lower()
+    else:
+        raise AssertionError("La cadena debe detener una orden con cantidad inválida")
+
+    assert despachador.historial_comandos() == ()
+    assert facade.historial_ordenes() == []
+
+
+def test_command_dispatches_order_once_and_keeps_command_history():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    registro = despachador.ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    comandos = despachador.historial_comandos()
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert len(comandos) == 1
+    assert comandos[0].resultado is registro
+
+    # Repetir el mismo comando devuelve el resultado existente y no duplica
+    # la operación en el historial ni vuelve a descontar saldo de la cartera.
+    saldo_despues_de_compra = facade.obtener_cartera("Cartera Principal").saldo_usd
+    resultado_repetido = comandos[0].ejecutar()
+    assert resultado_repetido is registro
+    assert facade.obtener_cartera("Cartera Principal").saldo_usd == saldo_despues_de_compra
+    assert len(facade.historial_ordenes()) == 1
+    assert len(despachador.historial_comandos()) == 1

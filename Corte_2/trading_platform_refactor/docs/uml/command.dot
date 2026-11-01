@@ -1,0 +1,18 @@
+digraph Command {
+  graph [rankdir=TB, bgcolor="white", pad="0.18", nodesep="0.22", ranksep="0.30", splines=ortho];
+  node [shape=record, style="rounded,filled", fillcolor="#f2edff", color="#8b5cf6", fontname="Arial", fontsize=11, margin="0.14,0.09"];
+  edge [color="#7652c8", fontname="Arial", fontsize=9, arrowsize=0.8];
+
+  UI [label="{OrdersPage|+ submit()}"];
+  Dispatcher [label="{ServicioDespachoOrdenes|+ ejecutar_orden()}"];
+  Invoker [label="{InvocadorOrdenes|+ ejecutar(comando)\l+ historial()\l}"];
+  Abstract [label="{ComandoOrden (interfaz)|+ ejecutar(): OrdenRegistro\l}"];
+  Concrete [label="{ComandoEjecutarOrden| - receptor: TradingPlatformFacade\l - parámetros y resultado\l|+ ejecutar()\l}"];
+  Receiver [label="{TradingPlatformFacade (receptor)|+ crear_orden()\l+ ejecutar_orden()\l}"];
+
+  UI -> Dispatcher [label="solicita"];
+  Dispatcher -> Invoker [label="despacha"];
+  Invoker -> Concrete [label="invoca"];
+  Concrete -> Abstract [style=dashed, arrowhead="empty", label="implementa"];
+  Concrete -> Receiver [label="delega"];
+}

@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y doce patrones GoF.
+en una arquitectura modular con PySide6, servicios y catorce patrones GoF.
 
 ## Estructura
 
@@ -21,11 +21,14 @@ trading_platform/
 │   ├── decorator.py
 │   ├── facade.py
 │   ├── flyweight.py
-│   └── proxy.py
+│   ├── proxy.py
+│   ├── command.py
+│   └── chain_of_responsibility.py
 ├── services/
 │   ├── trading_service.py
 │   ├── market_service.py
-│   └── portfolio_service.py
+│   ├── portfolio_service.py
+│   └── order_pattern_service.py
 ├── models/
 │   ├── asset.py
 │   ├── order.py
@@ -43,7 +46,11 @@ trading_platform/
 │       ├── flyweight.dot
 │       ├── flyweight.png
 │       ├── proxy.dot
-│       └── proxy.png
+│       ├── proxy.png
+│       ├── command.dot
+│       ├── command.png
+│       ├── chain_of_responsibility.dot
+│       └── chain_of_responsibility.png
 ├── resources/
 │   ├── icons/
 │   └── images/
@@ -149,6 +156,12 @@ La fábrica conserva una instancia inmutable por combinación de símbolo base y
 ### Proxy — `MercadoProxy`
 El servicio de mercado coloca un proxy virtual antes de cada adapter y mantiene la misma interfaz `Mercado.consultar_precio(activo)`. El proxy valida el tipo de activo y crea el adapter real solo cuando llega la primera consulta válida; las siguientes llamadas reutilizan el objeto inicializado. `MercadoConAuditoria` permanece por fuera para registrar las consultas completadas, manteniendo separadas la inicialización diferida y la trazabilidad.
 
+### Command — `ComandoEjecutarOrden` e `InvocadorOrdenes`
+El comando encapsula los parámetros de compra o venta y delega la creación y ejecución a `TradingPlatformFacade`, que actúa como receptor utilizando sus operaciones públicas existentes (`crear_orden()` y `ejecutar_orden()`). `InvocadorOrdenes` centraliza el despacho y mantiene un historial de comandos completados; cada objeto conserva su resultado para evitar que la misma instancia vuelva a ejecutar una operación. `ServicioDespachoOrdenes` conecta el comando con la pantalla después de superar la cadena de validación.
+
+### Chain of Responsibility — `CadenaValidacionOrden`
+La cadena de validación previa revisa los datos generales de la solicitud, las reglas de cantidad del activo, la cartera seleccionada y el precio objetivo de las órdenes Limit y Stop Loss. Cada manejador detiene la solicitud cuando encuentra un error o la delega al siguiente. `ServicioDespachoOrdenes` ejecuta estas comprobaciones antes de crear el comando; las validaciones de saldo y riesgo existentes permanecen en `PortfolioService`.
+
 ## Capas
 
 ```text
@@ -160,6 +173,12 @@ MarketService · TradingService · PortfolioService
    ↓
 Patterns + Models
 ```
+
+Para la pantalla de órdenes se incorpora un flujo específico: `OrdersPage` delega en
+`ServicioDespachoOrdenes`, que ejecuta primero Chain of Responsibility y, si la
+solicitud es válida, despacha un `ComandoEjecutarOrden`. El comando utiliza las
+operaciones públicas ya existentes de `TradingPlatformFacade`; no reemplaza ni
+modifica `TradingService`, `Bridge` ni los demás patrones establecidos.
 
 La lógica de negocio no usa `input()`, `print()`, menús de consola ni ciclos
 `while True`. `main.py` se limita a inicializar la aplicación Qt.
@@ -179,3 +198,4 @@ para que pueda configurarse de inmediato.
 
 La plataforma es una simulación local. No envía órdenes reales, no custodia
 credenciales de exchanges y no gestiona fondos financieros reales.
+

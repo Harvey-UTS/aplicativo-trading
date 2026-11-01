@@ -7,16 +7,17 @@ PySide6
   │
   ▼
 UI pages
+  ├── Market / Assets / Portfolios / Dashboard
+  │      └── TradingPlatformFacade
+  │
+  └── OrdersPage
+         └── ServicioDespachoOrdenes
+                ├── Chain of Responsibility
+                └── Command
+                       └── TradingPlatformFacade (receptor)
   │
   ▼
-TradingPlatformFacade
-  │
-  ▼
-Services
-  │
-  ├── TradingService
-  ├── MarketService
-  └── PortfolioService
+TradingPlatformFacade → TradingService · MarketService · PortfolioService
   │
   ▼
 Patterns + Models
@@ -38,6 +39,8 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | Nuevo patrón | `patterns/facade.py` + `ui/main_window.py` y páginas | punto de acceso unificado a mercado, órdenes y carteras |
 | Nuevo patrón | `patterns/flyweight.py` + `patterns/adapter.py` | reutilización de metadata inmutable de pares de mercado |
 | Nuevo patrón | `patterns/proxy.py` + `services/market_service.py` | acceso validado e inicialización diferida de adapters |
+| Nuevo patrón | `patterns/command.py` + `services/order_pattern_service.py` + `ui/orders_page.py` | encapsulamiento y despacho de órdenes simuladas |
+| Nuevo patrón | `patterns/chain_of_responsibility.py` + `services/order_pattern_service.py` | validación previa encadenada de solicitudes |
 
 ## Singleton
 
@@ -168,3 +171,13 @@ El único ciclo de eventos es el de Qt, gestionado por `QApplication`.
 ## Limitación de la validación en este entorno
 
 El entorno de generación no dispone de `PySide6` instalado y no puede descargar dependencias externas. Por eso se verificaron sintaxis, imports estructurales, patrones y servicios mediante pruebas automatizadas; la ejecución visual de Qt queda para el entorno donde se instale `requirements.txt`.
+
+
+## Command
+`ComandoEjecutarOrden` encapsula los parámetros de una solicitud y utiliza `TradingPlatformFacade` como receptor, por medio de sus métodos públicos existentes `crear_orden()` y `ejecutar_orden()`. `InvocadorOrdenes` despacha el comando y conserva su historial; la misma instancia no vuelve a crear ni ejecutar la orden cuando se invoca por segunda vez. `ServicioDespachoOrdenes` conecta este flujo con la pantalla de órdenes, sin modificar la fachada ni el servicio de trading existentes.
+
+## Chain of Responsibility
+`CadenaValidacionOrden` ejecuta validadores previos encadenados para los datos de la orden, el activo y su cantidad, la cartera y el precio objetivo. Si un manejador detecta una condición no válida, devuelve el mensaje y detiene el recorrido. `ServicioDespachoOrdenes` consulta la cadena antes de despachar el comando; las validaciones de saldo y riesgo que ya existen en `PortfolioService` permanecen sin cambios.
+
+## Servicio de integración de patrones de órdenes
+`services/order_pattern_service.py` coordina los dos patrones nuevos. Construye el contexto de validación, consulta la cadena y únicamente cuando el resultado es válido crea `ComandoEjecutarOrden` para que `InvocadorOrdenes` lo despache. La pantalla `OrdersPage` utiliza este servicio para las nuevas solicitudes; el historial de la interfaz sigue consultándose mediante la fachada.
