@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from patterns.composite import construir_composite
+from patterns.iterator import ColeccionTrading
+from patterns.memento import HistorialCartera
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
 from models.portfolio import Cartera
 
@@ -16,6 +18,57 @@ class PortfolioService:
         principal.capital_referencia_usd = principal.saldo_usd
         self._portfolios: dict[str, Cartera] = {principal.nombre: principal}
         self.gestor = crear_gestor_carteras(principal)
+        self._mementos: dict[str, HistorialCartera] = {}
+        self._eventos_trading: list[dict[str, object]] = []
+
+    def vincular_mediador(self, mediador) -> None:
+        """Registra este servicio como receptor de los eventos del trading."""
+        mediador.registrar(mediador.ANTES_ACTUALIZAR_CARTERA, self._guardar_estado_previo)
+        mediador.registrar(mediador.ORDEN_PROCESADA, self._registrar_evento_orden)
+        mediador.registrar(mediador.RESTAURAR_CARTERA, self._restaurar_estado_previo)
+
+    def _historial_de(self, nombre: str) -> HistorialCartera:
+        return self._mementos.setdefault(nombre, HistorialCartera())
+
+    def _guardar_estado_previo(self, *, cartera: Cartera, registro) -> None:
+        motivo = f"Antes de {registro.lado.value} {registro.activo}"
+        self._historial_de(cartera.nombre).guardar(cartera, motivo)
+
+    def _restaurar_estado_previo(self, *, cartera: Cartera) -> None:
+        historial = self._mementos.get(cartera.nombre)
+        if historial:
+            historial.deshacer(cartera)
+
+    def _registrar_evento_orden(self, *, cartera: Cartera, registro) -> None:
+        self._eventos_trading.append({
+            "orden_id": registro.id,
+            "cartera": cartera.nombre,
+            "activo": registro.activo,
+            "estado": registro.estado.value,
+        })
+        del self._eventos_trading[:-100]
+
+    def guardar_punto_control(self, nombre: str, motivo: str = "Punto de control manual"):
+        """Guarda una instantánea solicitada explícitamente."""
+        return self._historial_de(nombre).guardar(self.obtener_cartera(nombre), motivo)
+
+    def restaurar_ultimo_estado(self, nombre: str):
+        """Restaura el último estado conservado para la cartera indicada."""
+        historial = self._mementos.get(nombre)
+        if not historial:
+            raise ValueError("La cartera no tiene estados guardados para restaurar.")
+        return historial.deshacer(self.obtener_cartera(nombre))
+
+    def listar_puntos_control(self, nombre: str) -> tuple:
+        historial = self._mementos.get(nombre)
+        return historial.listar() if historial else ()
+
+    def eventos_trading(self) -> tuple[dict[str, object], ...]:
+        return tuple(dict(evento) for evento in self._eventos_trading)
+
+    def iterar_posiciones(self, nombre: str) -> ColeccionTrading:
+        """Entrega un recorrido independiente de las posiciones actuales."""
+        return ColeccionTrading(self.obtener_cartera(nombre).activos)
 
     def listar_carteras(self) -> list[Cartera]:
         return list(self._portfolios.values())

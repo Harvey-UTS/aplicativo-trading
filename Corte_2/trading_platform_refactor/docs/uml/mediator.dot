@@ -1,0 +1,14 @@
+digraph Mediator {
+  graph [rankdir=TB, bgcolor="white", pad="0.20", nodesep="0.40", ranksep="0.48", splines=polyline, fontname="Liberation Sans", label="Mediator · Coordinación de eventos de trading", labelloc=t, fontsize=18, fontcolor="#312e81"];
+  node [shape=plain, fontname="Liberation Sans", fontsize=13];
+  edge [fontname="Liberation Sans", fontsize=11, color="#6d5ba6", fontcolor="#4c1d95", arrowsize=0.85, penwidth=1.2];
+  trading [label=<<TABLE BORDER="1" COLOR="#8b5cf6" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#f5f3ff"><TR><TD><B>TradingService</B></TD></TR><HR/><TR><TD>ejecutar_orden() · notificar(evento)</TD></TR></TABLE>>];
+  mediator [label=<<TABLE BORDER="1" COLOR="#8b5cf6" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#ede9fe"><TR><TD><B>MediadorTrading</B></TD></TR><HR/><TR><TD>_receptores: dict</TD></TR><TR><TD>registrar() · notificar()</TD></TR></TABLE>>];
+  portfolio [label=<<TABLE BORDER="1" COLOR="#8b5cf6" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#f5f3ff"><TR><TD><B>PortfolioService</B></TD></TR><HR/><TR><TD>guardar_estado_previo()</TD></TR><TR><TD>registrar_evento_orden() · restaurar_estado()</TD></TR></TABLE>>];
+  caretaker [label=<<TABLE BORDER="1" COLOR="#8b5cf6" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="#f5f3ff"><TR><TD><B>HistorialCartera</B></TD></TR><HR/><TR><TD>guardar(cartera, motivo) · deshacer(cartera)</TD></TR></TABLE>>];
+  {rank=same; trading; mediator;}
+  {rank=same; portfolio; caretaker;}
+  trading -> mediator [label="publica eventos"];
+  mediator -> portfolio [label="notifica"];
+  portfolio -> caretaker [label="guarda / restaura"];
+}

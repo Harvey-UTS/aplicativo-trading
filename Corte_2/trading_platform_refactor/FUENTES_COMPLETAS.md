@@ -1,6 +1,6 @@
 # Fuentes completas — Trading MultiExchange
 
-Cada archivo Python aparece por separado y dentro de un bloque completo listo para copiar.
+Cada archivo Python del proyecto aparece por separado y dentro de un bloque completo listo para copiar.
 
 ## `main.py`
 
@@ -34,1526 +34,6 @@ def main() -> int:
 if __name__ == "__main__":
     raise SystemExit(main())
 ```
-
-## `patterns/__init__.py`
-
-```python
-"""Patrones GoF de la plataforma."""
-```
-
-## `patterns/singleton.py`
-
-```python
-"""Singleton: fuente única de verdad para precios simulados."""
-
-from __future__ import annotations
-
-import random
-import threading
-import time
-from typing import ClassVar
-
-
-class ExchangeConnectionManager:
-    """Administra una única instancia del caché de mercado.
-
-    No conoce PySide6 y no imprime en consola. Puede ejecutar una pequeña
-    simulación en segundo plano para mantener el comportamiento dinámico del
-    ejercicio original.
-    """
-
-    _instance: ClassVar["ExchangeConnectionManager | None"] = None
-    _lock: ClassVar[threading.Lock] = threading.Lock()
-
-    _initial_exchange_prices = {
-        "A": {
-            "BTC/USDT": 60000.00,
-            "ETH/USDT": 3000.00,
-            "SOL/USDT": 145.20,
-            "LINK/USDT": 15.00,
-            "MATIC/USDT": 0.50,
-            "CRYPTOART001/USDT": 2500.00,
-        },
-        "B": {
-            "BTC/USDT": 60500.00,
-            "ETH/USDT": 3050.00,
-            "SOL/USDT": 146.10,
-            "LINK/USDT": 15.50,
-            "MATIC/USDT": 0.55,
-            "CRYPTOART001/USDT": 2600.00,
-        },
-        "C": {
-            "BTC/USDT": 61000.00,
-            "ETH/USDT": 3095.00,
-            "SOL/USDT": 147.40,
-            "LINK/USDT": 16.00,
-            "MATIC/USDT": 0.57,
-            "CRYPTOART001/USDT": 2700.00,
-        },
-    }
-
-    _canonical_prices = {
-        "BTC/USDT": 64500.50,
-        "ETH/USDT": 3450.75,
-        "SOL/USDT": 145.20,
-    }
-
-    def __new__(cls) -> "ExchangeConnectionManager":
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-                cls._instance._initialize()
-            return cls._instance
-
-    def _initialize(self) -> None:
-        self._prices = {
-            exchange: dict(prices)
-            for exchange, prices in self._initial_exchange_prices.items()
-        }
-        self._canonical = dict(self._canonical_prices)
-        self._data_lock = threading.RLock()
-        self.running = False
-        self._thread: threading.Thread | None = None
-
-    def start(self, interval: float = 1.0) -> None:
-        if self.running:
-            return
-        self.running = True
-        self._thread = threading.Thread(
-            target=self._update_loop,
-            args=(interval,),
-            daemon=True,
-            name="market-simulator",
-        )
-        self._thread.start()
-
-    def _update_loop(self, interval: float) -> None:
-        while self.running:
-            time.sleep(max(0.25, interval))
-            self.simulate_market_update()
-
-    def simulate_market_update(self) -> None:
-        with self._data_lock:
-            for exchange_prices in self._prices.values():
-                for pair, value in list(exchange_prices.items()):
-                    exchange_prices[pair] = round(
-                        max(0.0001, value * (1.0 + random.uniform(-0.003, 0.003))),
-                        4 if value < 1 else 2,
-                    )
-
-            for pair, value in list(self._canonical.items()):
-                self._canonical[pair] = round(
-                    max(0.0001, value * (1.0 + random.uniform(-0.003, 0.003))),
-                    4 if value < 1 else 2,
-                )
-
-    def get_price(self, pair: str) -> float | None:
-        """Mantiene el contrato original para el precio canónico."""
-        with self._data_lock:
-            return self._canonical.get(pair)
-
-    def get_exchange_price(self, exchange: str, pair: str) -> float | None:
-        exchange = str(exchange).upper()
-        with self._data_lock:
-            return self._prices.get(exchange, {}).get(pair)
-
-    def set_cached_price(self, exchange: str, pair: str, price: float) -> None:
-        with self._data_lock:
-            self._prices.setdefault(exchange.upper(), {})[pair] = float(price)
-
-    def snapshot(self, exchange: str | None = None) -> dict:
-        with self._data_lock:
-            if exchange is None:
-                return {key: dict(value) for key, value in self._prices.items()}
-            return dict(self._prices.get(exchange.upper(), {}))
-
-    def stop(self) -> None:
-        self.running = False
-
-    @classmethod
-    def reset_for_tests(cls) -> None:
-        """Reinicia el Singleton únicamente para pruebas automatizadas."""
-        with cls._lock:
-            if cls._instance is not None:
-                cls._instance.stop()
-            cls._instance = None
-```
-
-## `patterns/factory_method.py`
-
-```python
-"""Factory Method para criptomonedas, tokens y NFT."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
-from models.asset import ActivoDigital, Criptomoneda, NFT, Token
-
-
-class CreadorActivo(ABC):
-    """Creator abstracto del patrón Factory Method."""
-
-    @abstractmethod
-    def crear_activo(
-        self,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> ActivoDigital:
-        pass
-
-    def comprar_activo(
-        self,
-        nombre: str,
-        precio: float,
-        cantidad: float,
-        simbolo: str | None = None,
-    ):
-        activo = self.crear_activo(nombre, precio, simbolo)
-        return activo.comprar(cantidad)
-
-    def vender_activo(
-        self,
-        nombre: str,
-        precio: float,
-        cantidad: float,
-        simbolo: str | None = None,
-    ):
-        activo = self.crear_activo(nombre, precio, simbolo)
-        return activo.vender(cantidad)
-
-    def mostrar_activo(
-        self,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> dict[str, object]:
-        activo = self.crear_activo(nombre, precio, simbolo)
-        return activo.mostrar_informacion()
-
-
-class CreadorCriptomoneda(CreadorActivo):
-    def crear_activo(
-        self,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> ActivoDigital:
-        return Criptomoneda(nombre, precio, simbolo)
-
-
-class CreadorToken(CreadorActivo):
-    def crear_activo(
-        self,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> ActivoDigital:
-        return Token(nombre, precio, simbolo)
-
-
-class CreadorNFT(CreadorActivo):
-    def crear_activo(
-        self,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> ActivoDigital:
-        return NFT(nombre, precio, simbolo)
-```
-
-## `patterns/abstract_factory.py`
-
-```python
-"""Abstract Factory para familias de productos de cada exchange."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
-from patterns.bridge import (
-    EjecutorOrden,
-    ExchangeAExecutor,
-    ExchangeBExecutor,
-    ExchangeCExecutor,
-)
-
-
-class Mercado(ABC):
-    """Producto abstracto de consulta de mercado."""
-
-    @abstractmethod
-    def consultar_precio(self, activo):
-        pass
-
-
-class FabricaExchange(ABC):
-    """Abstract Factory."""
-
-    @abstractmethod
-    def crear_mercado(self) -> Mercado:
-        pass
-
-    @abstractmethod
-    def crear_orden(self) -> EjecutorOrden:
-        pass
-
-    @property
-    @abstractmethod
-    def codigo(self) -> str:
-        pass
-
-
-class MercadoExchangeA:
-    """Alias conceptual mantenido para el ejercicio anterior."""
-
-    pass
-
-
-class MercadoExchangeB:
-    pass
-
-
-class MercadoExchangeC:
-    pass
-
-
-class FabricaExchangeA(FabricaExchange):
-    codigo = "A"
-
-    def crear_mercado(self) -> Mercado:
-        from patterns.adapter import ExchangeAAdapter
-        return ExchangeAAdapter()
-
-    def crear_orden(self) -> EjecutorOrden:
-        return ExchangeAExecutor()
-
-
-class FabricaExchangeB(FabricaExchange):
-    codigo = "B"
-
-    def crear_mercado(self) -> Mercado:
-        from patterns.adapter import ExchangeBAdapter
-        return ExchangeBAdapter()
-
-    def crear_orden(self) -> EjecutorOrden:
-        return ExchangeBExecutor()
-
-
-class FabricaExchangeC(FabricaExchange):
-    codigo = "C"
-
-    def crear_mercado(self) -> Mercado:
-        from patterns.adapter import ExchangeCAdapter
-        return ExchangeCAdapter()
-
-    def crear_orden(self) -> EjecutorOrden:
-        return ExchangeCExecutor()
-
-
-# Compatibilidad explícita con los nombres históricos del avance.
-from patterns.adapter import ExchangeAAdapter, ExchangeBAdapter, ExchangeCAdapter
-
-MercadoExchangeA = ExchangeAAdapter
-MercadoExchangeB = ExchangeBAdapter
-MercadoExchangeC = ExchangeCAdapter
-OrdenExchangeA = ExchangeAExecutor
-OrdenExchangeB = ExchangeBExecutor
-OrdenExchangeC = ExchangeCExecutor
-```
-
-## `patterns/prototype.py`
-
-```python
-"""Prototype para clonar carteras y sus configuraciones."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
-from models.portfolio import Cartera
-
-
-class Prototype(ABC):
-    @abstractmethod
-    def clonar(self):
-        pass
-
-
-class GestorCarteras:
-    """Administrador de copias del prototipo principal."""
-
-    def __init__(self) -> None:
-        self.prototipo: Cartera | None = None
-
-    def establecer_prototipo(self, cartera: Cartera) -> None:
-        self.prototipo = cartera
-
-    def crear_copia(self, nombre: str, porcentaje_recargado: float = 100.0) -> Cartera:
-        if self.prototipo is None:
-            raise ValueError("No existe un prototipo de cartera configurado.")
-
-        nueva = self.prototipo.clonar()
-        nueva.nombre = nombre
-        nueva.porcentaje_recargado = porcentaje_recargado
-        factor = porcentaje_recargado / 100.0
-        nueva.saldo_cop = self.prototipo.saldo_cop * factor
-        nueva.saldo_usd = self.prototipo.saldo_usd * factor
-        nueva.capital_referencia_usd = self.prototipo.capital_referencia_usd * factor
-        return nueva
-
-
-def crear_cartera_principal(
-    nombre: str = "Cartera Principal",
-    limite_exposicion: float = 50.0,
-    limite_perdida: float = 10.0,
-) -> Cartera:
-    cartera = Cartera(nombre)
-    cartera.configurar_riesgo(limite_exposicion, limite_perdida)
-    return cartera
-
-
-def crear_gestor_carteras(cartera: Cartera) -> GestorCarteras:
-    gestor = GestorCarteras()
-    gestor.establecer_prototipo(cartera)
-    return gestor
-
-
-def clonar_cartera(
-    gestor: GestorCarteras,
-    nombre: str,
-    porcentaje_recargado: float,
-) -> Cartera:
-    try:
-        porcentaje = float(porcentaje_recargado)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("El porcentaje debe ser numérico.") from exc
-
-    if not 0 <= porcentaje <= 100:
-        raise ValueError("El porcentaje debe estar entre 0% y 100%.")
-
-    if not nombre.strip():
-        raise ValueError("El nombre de la cartera no puede estar vacío.")
-
-    return gestor.crear_copia(nombre.strip(), porcentaje)
-
-
-def obtener_precio_singleton(nombre: str, api) -> float | None:
-    pares = {
-        "Bitcoin": "BTC/USDT",
-        "Ethereum": "ETH/USDT",
-        "Solana": "SOL/USDT",
-    }
-    par = pares.get(nombre)
-    return None if par is None else api.get_price(par)
-```
-
-## `patterns/builder.py`
-
-```python
-"""Builder que ensambla los patrones de la plataforma."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-from models.asset import ActivoDigital
-from models.portfolio import Cartera
-from patterns.abstract_factory import (
-    FabricaExchange,
-    FabricaExchangeA,
-    FabricaExchangeB,
-    FabricaExchangeC,
-)
-from patterns.bridge import OrdenLimit, OrdenMarket, OrdenStopLoss, OrdenTrading
-from patterns.factory_method import (
-    CreadorCriptomoneda,
-    CreadorNFT,
-    CreadorToken,
-)
-from patterns.prototype import GestorCarteras
-from patterns.singleton import ExchangeConnectionManager
-
-
-@dataclass(slots=True)
-class PlataformaTrading:
-    """Producto final ensamblado por Builder."""
-
-    sistema_ordenes: ExchangeConnectionManager | None = None
-    creador: object | None = None
-    activo: ActivoDigital | None = None
-    fabrica_exchange: FabricaExchange | None = None
-    cartera: Cartera | None = None
-    gestor_carteras: GestorCarteras | None = None
-    orden: OrdenTrading | None = None
-
-    @property
-    def exchange(self) -> str:
-        if self.fabrica_exchange is None:
-            return ""
-        return self.fabrica_exchange.codigo
-
-
-class PlataformaTradingBuilder:
-    """Builder fluido para escenarios de trading completos."""
-
-    def __init__(self) -> None:
-        self.sistema_ordenes: ExchangeConnectionManager | None = None
-        self.creador = None
-        self.activo: ActivoDigital | None = None
-        self.fabrica_exchange: FabricaExchange | None = None
-        self.cartera: Cartera | None = None
-        self.gestor_carteras: GestorCarteras | None = None
-        self.orden: OrdenTrading | None = None
-
-    def configurar_singleton(self) -> "PlataformaTradingBuilder":
-        self.sistema_ordenes = ExchangeConnectionManager()
-        return self
-
-    def configurar_operacion(
-        self,
-        tipo_activo: str,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> "PlataformaTradingBuilder":
-        creadores = {
-            "CRIPTO": CreadorCriptomoneda,
-            "CRYPTO": CreadorCriptomoneda,
-            "TOKEN": CreadorToken,
-            "NFT": CreadorNFT,
-        }
-        key = tipo_activo.upper().strip()
-        aliases = {
-            "CRIPTOMONEDA": "CRIPTO",
-            "CRYPTOCURRENCY": "CRIPTO",
-            "TOKEN": "TOKEN",
-            "NFT": "NFT",
-            "CRYPTO": "CRIPTO",
-        }
-        key = aliases.get(key, key)
-        creador_cls = creadores.get(key)
-        if creador_cls is None:
-            raise ValueError("Tipo de activo no válido. Use CRIPTO, TOKEN o NFT.")
-        self.creador = creador_cls()
-        self.activo = self.creador.crear_activo(nombre, precio, simbolo)
-        return self
-
-    def configurar_exchange(
-        self,
-        exchange: str | FabricaExchange,
-    ) -> "PlataformaTradingBuilder":
-        if isinstance(exchange, FabricaExchange):
-            self.fabrica_exchange = exchange
-            return self
-
-        factories = {
-            "A": FabricaExchangeA,
-            "B": FabricaExchangeB,
-            "C": FabricaExchangeC,
-        }
-        factory_cls = factories.get(str(exchange).upper().strip())
-        if factory_cls is None:
-            raise ValueError("Exchange no válido. Use A, B o C.")
-        self.fabrica_exchange = factory_cls()
-        return self
-
-    def configurar_cartera(
-        self,
-        cartera: Cartera,
-        gestor_carteras: GestorCarteras | None = None,
-    ) -> "PlataformaTradingBuilder":
-        self.cartera = cartera
-        self.gestor_carteras = gestor_carteras
-        return self
-
-    def configurar_orden(
-        self,
-        tipo_orden: str,
-        precio_objetivo: float | None = None,
-    ) -> "PlataformaTradingBuilder":
-        if self.fabrica_exchange is None:
-            raise ValueError("Primero debe configurar el exchange.")
-
-        executor = self.fabrica_exchange.crear_orden()
-        key = tipo_orden.upper().replace("-", " ").strip()
-        if key == "MARKET":
-            self.orden = OrdenMarket(executor)
-        elif key == "LIMIT":
-            if precio_objetivo is None:
-                raise ValueError("La orden Limit requiere un precio objetivo.")
-            self.orden = OrdenLimit(executor, precio_objetivo)
-        elif key in {"STOP LOSS", "STOPLOSS"}:
-            if precio_objetivo is None:
-                raise ValueError("La orden Stop Loss requiere un precio de activación.")
-            self.orden = OrdenStopLoss(executor, precio_objetivo)
-        else:
-            raise ValueError("Tipo de orden no válido.")
-        return self
-
-    def build(self) -> PlataformaTrading:
-        if self.sistema_ordenes is None:
-            self.configurar_singleton()
-        if self.fabrica_exchange is None:
-            raise ValueError("Debe configurar un exchange.")
-        if self.cartera is None:
-            raise ValueError("Debe configurar una cartera.")
-
-        return PlataformaTrading(
-            sistema_ordenes=self.sistema_ordenes,
-            creador=self.creador,
-            activo=self.activo,
-            fabrica_exchange=self.fabrica_exchange,
-            cartera=self.cartera,
-            gestor_carteras=self.gestor_carteras,
-            orden=self.orden,
-        )
-```
-
-## `patterns/bridge.py`
-
-```python
-"""Bridge: tipos de orden desacoplados de exchanges."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
-from models.asset import ActivoDigital
-from models.order import ExecutionResult, EstadoOrden, LadoOrden, TipoOrden
-
-
-class EjecutorOrden(ABC):
-    """Implementador del Bridge y producto abstracto para Abstract Factory."""
-
-    nombre_exchange = "Exchange"
-
-    @abstractmethod
-    def ejecutar(
-        self,
-        orden: "OrdenTrading",
-        activo: ActivoDigital,
-        lado: LadoOrden,
-        cantidad: float,
-        precio: float,
-    ) -> ExecutionResult:
-        pass
-
-    def _resultado_ejecutado(
-        self,
-        activo: ActivoDigital,
-        cantidad: float,
-        precio: float,
-    ) -> ExecutionResult:
-        return ExecutionResult(
-            status=EstadoOrden.EJECUTADA,
-            message=(
-                f"Orden {activo.nombre} ejecutada en {self.nombre_exchange}."
-            ),
-            total=precio * cantidad,
-        )
-
-    def _resultado_pendiente(self, mensaje: str) -> ExecutionResult:
-        return ExecutionResult(
-            status=EstadoOrden.PENDIENTE,
-            message=mensaje,
-            total=0.0,
-        )
-
-
-class OrdenTrading(ABC):
-    """Abstracción del Bridge para el tipo de orden."""
-
-    tipo: TipoOrden = TipoOrden.MARKET
-
-    def __init__(self, executor: EjecutorOrden) -> None:
-        self.executor = executor
-
-    def cambiar_executor(self, executor: EjecutorOrden) -> None:
-        self.executor = executor
-
-    @abstractmethod
-    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
-        pass
-
-    def ejecutar(
-        self,
-        activo: ActivoDigital,
-        lado: LadoOrden,
-        cantidad: float,
-        precio: float,
-    ) -> ExecutionResult:
-        lado_enum = lado if isinstance(lado, LadoOrden) else LadoOrden(str(lado).upper())
-        activo.validar_cantidad(cantidad)
-        self.validar(lado_enum, cantidad, precio)
-        return self.executor.ejecutar(self, activo, lado_enum, cantidad, precio)
-
-
-class OrdenMarket(OrdenTrading):
-    tipo = TipoOrden.MARKET
-
-    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
-        if cantidad <= 0 or precio <= 0:
-            raise ValueError("Una orden Market requiere cantidad y precio positivos.")
-
-
-class OrdenLimit(OrdenTrading):
-    tipo = TipoOrden.LIMIT
-
-    def __init__(self, executor: EjecutorOrden, precio_limite: float) -> None:
-        super().__init__(executor)
-        if precio_limite <= 0:
-            raise ValueError("El precio límite debe ser mayor que cero.")
-        self.precio_limite = float(precio_limite)
-
-    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
-        if cantidad <= 0 or precio <= 0:
-            raise ValueError("Una orden Limit requiere cantidad y precio positivos.")
-
-
-class OrdenStopLoss(OrdenTrading):
-    tipo = TipoOrden.STOP_LOSS
-
-    def __init__(self, executor: EjecutorOrden, precio_activacion: float) -> None:
-        super().__init__(executor)
-        if precio_activacion <= 0:
-            raise ValueError("El precio de activación debe ser mayor que cero.")
-        self.precio_activacion = float(precio_activacion)
-
-    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
-        if cantidad <= 0 or precio <= 0:
-            raise ValueError("Una orden Stop Loss requiere cantidad y precio positivos.")
-
-
-class ExchangeAExecutor(EjecutorOrden):
-    nombre_exchange = "Exchange A"
-
-    def ejecutar(self, orden, activo, lado, cantidad, precio) -> ExecutionResult:
-        if isinstance(orden, OrdenLimit):
-            condicion = precio <= orden.precio_limite if lado == LadoOrden.COMPRA else precio >= orden.precio_limite
-            if not condicion:
-                return self._resultado_pendiente(
-                    f"Orden Limit pendiente: el precio actual (${precio:,.2f}) "
-                    f"no cumple el límite (${orden.precio_limite:,.2f})."
-                )
-
-        if isinstance(orden, OrdenStopLoss):
-            condicion = precio >= orden.precio_activacion if lado == LadoOrden.COMPRA else precio <= orden.precio_activacion
-            if not condicion:
-                return self._resultado_pendiente(
-                    f"Stop Loss pendiente: el precio actual (${precio:,.2f}) "
-                    f"no ha alcanzado la activación (${orden.precio_activacion:,.2f})."
-                )
-
-        return self._resultado_ejecutado(activo, cantidad, precio)
-
-
-class ExchangeBExecutor(ExchangeAExecutor):
-    nombre_exchange = "Exchange B"
-
-
-class ExchangeCExecutor(ExchangeAExecutor):
-    nombre_exchange = "Exchange C"
-```
-
-## `patterns/adapter.py`
-
-```python
-"""Adapter: normaliza APIs de exchanges con estructuras incompatibles."""
-
-from __future__ import annotations
-
-from models.asset import ActivoDigital
-from patterns.abstract_factory import Mercado
-from patterns.flyweight import ParMercadoFactory
-from patterns.singleton import ExchangeConnectionManager
-
-
-class ApiExchangeA:
-    """API externa simulada: devuelve lastPrice."""
-
-    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
-        self.manager = manager or ExchangeConnectionManager()
-
-    def get_ticker(self, pair: str) -> dict[str, object]:
-        price = self.manager.get_exchange_price("A", pair)
-        if price is None:
-            raise KeyError(f"El par {pair} no existe en Exchange A.")
-        return {"symbol": pair, "lastPrice": price}
-
-
-class ApiExchangeB:
-    """API externa simulada: exige base/quote y entrega data.amount."""
-
-    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
-        self.manager = manager or ExchangeConnectionManager()
-
-    def fetch_market(self, base: str, quote: str) -> dict[str, object]:
-        pair = f"{base.upper()}/{quote.upper()}"
-        price = self.manager.get_exchange_price("B", pair)
-        if price is None:
-            raise KeyError(f"El par {pair} no existe en Exchange B.")
-        return {"data": {"pair": pair, "amount": str(price)}}
-
-
-class ApiExchangeC:
-    """API externa simulada: devuelve ticker.last y un formato alternativo."""
-
-    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
-        self.manager = manager or ExchangeConnectionManager()
-
-    def obtener_ticker(self, par: str) -> dict[str, object]:
-        price = self.manager.get_exchange_price("C", par)
-        if price is None:
-            raise KeyError(f"El par {par} no existe en Exchange C.")
-        return {"ticker": {"pair": par, "last": price, "currency": "USDT"}}
-
-
-def _market_pair_for_asset(activo: ActivoDigital):
-    """Obtiene el estado intrínseco compartido del par base/cotización."""
-    return ParMercadoFactory.obtener(activo.simbolo, "USDT")
-
-
-def _pair_for_asset(activo: ActivoDigital) -> str:
-    return _market_pair_for_asset(activo).par
-
-
-class ExchangeAAdapter(Mercado):
-    """Target: Mercado.consultar_precio(activo)."""
-
-    def __init__(self, api: ApiExchangeA | None = None) -> None:
-        self.api = api or ApiExchangeA()
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        response = self.api.get_ticker(_pair_for_asset(activo))
-        return float(response["lastPrice"])
-
-
-class ExchangeBAdapter(Mercado):
-    def __init__(self, api: ApiExchangeB | None = None) -> None:
-        self.api = api or ApiExchangeB()
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        par = _market_pair_for_asset(activo)
-        response = self.api.fetch_market(par.simbolo_base, par.simbolo_cotizacion)
-        return float(response["data"]["amount"])
-
-
-class ExchangeCAdapter(Mercado):
-    def __init__(self, api: ApiExchangeC | None = None) -> None:
-        self.api = api or ApiExchangeC()
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        response = self.api.obtener_ticker(_pair_for_asset(activo))
-        return float(response["ticker"]["last"])
-```
-
-## `patterns/composite.py`
-
-```python
-"""Composite para agrupar posiciones de una cartera de forma uniforme."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from models.portfolio import Cartera, Posicion
-
-
-class ComponenteCartera(ABC):
-    """Componente común para hojas y compuestos del árbol de cartera."""
-
-    def __init__(self, nombre: str) -> None:
-        self.nombre = nombre
-
-    @abstractmethod
-    def valor(self, precios: dict[str, float]) -> float:
-        """Calcula el valor representado por el componente."""
-
-    @abstractmethod
-    def cantidad_componentes(self) -> int:
-        """Devuelve el número de posiciones hoja contenidas."""
-
-
-class PosicionActivo(ComponenteCartera):
-    """Leaf: representa una posición individual de la cartera."""
-
-    def __init__(self, posicion: "Posicion") -> None:
-        super().__init__(posicion.nombre)
-        self.posicion = posicion
-
-    def valor(self, precios: dict[str, float]) -> float:
-        precio = precios.get(self.posicion.nombre, self.posicion.precio_promedio)
-        return self.posicion.cantidad * precio
-
-    def cantidad_componentes(self) -> int:
-        return 1
-
-
-class GrupoActivos(ComponenteCartera):
-    """Composite: agrupa posiciones y otros grupos de forma recursiva."""
-
-    def __init__(self, nombre: str) -> None:
-        super().__init__(nombre)
-        self._componentes: list[ComponenteCartera] = []
-
-    def agregar(self, componente: ComponenteCartera) -> None:
-        if componente is self:
-            raise ValueError("Un grupo no puede agregarse a sí mismo.")
-        self._componentes.append(componente)
-
-    def quitar(self, componente: ComponenteCartera) -> None:
-        self._componentes.remove(componente)
-
-    @property
-    def componentes(self) -> tuple[ComponenteCartera, ...]:
-        return tuple(self._componentes)
-
-    def valor(self, precios: dict[str, float]) -> float:
-        return sum(componente.valor(precios) for componente in self._componentes)
-
-    def cantidad_componentes(self) -> int:
-        return sum(componente.cantidad_componentes() for componente in self._componentes)
-
-
-def construir_composite(cartera: "Cartera") -> GrupoActivos:
-    """Construye el árbol Composite de las posiciones actuales de una cartera."""
-    raiz = GrupoActivos(cartera.nombre)
-    for posicion in cartera.activos:
-        raiz.agregar(PosicionActivo(posicion))
-    return raiz
-```
-
-## `patterns/decorator.py`
-
-```python
-"""Decorator para añadir trazabilidad a las consultas de mercado."""
-
-from __future__ import annotations
-
-from abc import ABC
-from datetime import datetime
-
-from models.asset import ActivoDigital
-from patterns.abstract_factory import Mercado
-
-
-class MercadoDecorator(Mercado, ABC):
-    """Decorator base que conserva el contrato de Mercado."""
-
-    def __init__(self, mercado: Mercado) -> None:
-        self.mercado = mercado
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        return self.mercado.consultar_precio(activo)
-
-
-class MercadoConAuditoria(MercadoDecorator):
-    """Añade historial de consultas sin modificar el adapter original."""
-
-    def __init__(self, mercado: Mercado, exchange: str) -> None:
-        super().__init__(mercado)
-        self.exchange = str(exchange).upper()
-        self._consultas = 0
-        self._ultima_consulta: dict[str, object] | None = None
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        precio = super().consultar_precio(activo)
-        self._consultas += 1
-        self._ultima_consulta = {
-            "exchange": self.exchange,
-            "activo": activo.nombre,
-            "simbolo": activo.simbolo,
-            "precio": float(precio),
-            "timestamp": datetime.now(),
-        }
-        return float(precio)
-
-    @property
-    def consultas(self) -> int:
-        return self._consultas
-
-    @property
-    def ultima_consulta(self) -> dict[str, object] | None:
-        return None if self._ultima_consulta is None else dict(self._ultima_consulta)
-
-    def resumen(self) -> dict[str, object]:
-        return {
-            "exchange": self.exchange,
-            "consultas": self.consultas,
-            "ultima_consulta": self.ultima_consulta,
-        }
-```
-
-## `patterns/facade.py`
-
-```python
-"""Facade: punto de acceso unificado a los servicios de la plataforma."""
-
-from __future__ import annotations
-
-from models.asset import ActivoDigital
-from models.order import OrdenRegistro
-from models.portfolio import Cartera
-from patterns.builder import PlataformaTrading
-from patterns.singleton import ExchangeConnectionManager
-from services.market_service import MarketRow, MarketService
-from services.portfolio_service import PortfolioService
-from services.trading_service import TradingService
-
-
-class TradingPlatformFacade:
-    """Simplifica la interacción con mercado, carteras, órdenes y riesgo.
-
-    La interfaz gráfica utiliza esta fachada en lugar de crear y coordinar los
-    servicios por separado. La lógica detallada continúa encapsulada en cada
-    servicio especializado.
-    """
-
-    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
-        self._manager = manager or ExchangeConnectionManager()
-        self._market = MarketService(self._manager)
-        self._portfolios = PortfolioService()
-        self._trading = TradingService(self._market, self._portfolios)
-
-    @property
-    def manager(self) -> ExchangeConnectionManager:
-        """Expone el gestor compartido para administrar el ciclo de vida local."""
-        return self._manager
-
-    def iniciar(self) -> None:
-        """Inicia la actualización local de precios simulados."""
-        self._manager.start()
-
-    def cerrar(self) -> None:
-        """Detiene la actualización local al cerrar la aplicación."""
-        self._manager.stop()
-
-    # Mercado y activos
-    def actualizar_mercado(self) -> None:
-        self._market.actualizar_mercado()
-
-    def crear_activo(
-        self,
-        tipo: str,
-        nombre: str,
-        precio: float,
-        simbolo: str | None = None,
-    ) -> ActivoDigital:
-        return self._market.crear_activo(tipo, nombre, precio, simbolo)
-
-    def obtener_activos(self) -> list[ActivoDigital]:
-        return self._market.obtener_activos()
-
-    def obtener_activo(self, nombre: str) -> ActivoDigital:
-        return self._market.obtener_activo(nombre)
-
-    def obtener_precio(self, activo: ActivoDigital | str, exchange: str = "A") -> float:
-        return self._market.obtener_precio(activo, exchange)
-
-    def obtener_auditoria_mercado(self, exchange: str) -> dict[str, object]:
-        return self._market.obtener_auditoria_mercado(exchange)
-
-    def tabla_mercado(
-        self,
-        previous: dict[tuple[str, str], float] | None = None,
-    ) -> list[MarketRow]:
-        return self._market.tabla_mercado(previous)
-
-    # Carteras y control de riesgo
-    def listar_carteras(self) -> list[Cartera]:
-        return self._portfolios.listar_carteras()
-
-    def obtener_cartera(self, nombre: str) -> Cartera:
-        return self._portfolios.obtener_cartera(nombre)
-
-    def recargar_cartera(self, nombre: str, monto: float, moneda: str) -> None:
-        self._portfolios.recargar(nombre, monto, moneda)
-
-    def clonar_cartera(self, nombre: str, porcentaje: float) -> Cartera:
-        return self._portfolios.clonar_cartera(nombre, porcentaje)
-
-    def configurar_riesgo(
-        self,
-        nombre: str,
-        exposicion: float,
-        perdida: float,
-        stop_loss: float,
-        take_profit: float,
-    ) -> None:
-        self._portfolios.configurar_riesgo(
-            nombre, exposicion, perdida, stop_loss, take_profit
-        )
-
-    def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
-        return self._portfolios.obtener_balance(nombre, precios)
-
-    def evaluar_riesgo(self, cartera: Cartera, precios: dict[str, float]) -> dict[str, object]:
-        return self._portfolios.evaluar_riesgo(cartera, precios)
-
-    # Órdenes y simulación de operaciones
-    def crear_orden(
-        self,
-        tipo_orden: str,
-        lado: str,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str,
-        precio_objetivo: float | None = None,
-    ) -> tuple[PlataformaTrading, OrdenRegistro]:
-        return self._trading.crear_orden(
-            tipo_orden,
-            lado,
-            exchange,
-            activo_nombre,
-            cantidad,
-            cartera_nombre,
-            precio_objetivo,
-        )
-
-    def ejecutar_orden(
-        self,
-        plataforma: PlataformaTrading,
-        registro: OrdenRegistro,
-    ) -> OrdenRegistro:
-        return self._trading.ejecutar_orden(plataforma, registro)
-
-    def crear_y_ejecutar_orden(
-        self,
-        tipo_orden: str,
-        lado: str,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str,
-        precio_objetivo: float | None = None,
-    ) -> OrdenRegistro:
-        """Coordina la construcción, validación y ejecución de una orden."""
-        plataforma, registro = self.crear_orden(
-            tipo_orden,
-            lado,
-            exchange,
-            activo_nombre,
-            cantidad,
-            cartera_nombre,
-            precio_objetivo,
-        )
-        return self.ejecutar_orden(plataforma, registro)
-
-    def comprar_activo(
-        self,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str = "Cartera Principal",
-    ) -> OrdenRegistro:
-        return self._trading.comprar_activo(
-            exchange, activo_nombre, cantidad, cartera_nombre
-        )
-
-    def vender_activo(
-        self,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str = "Cartera Principal",
-    ) -> OrdenRegistro:
-        return self._trading.vender_activo(
-            exchange, activo_nombre, cantidad, cartera_nombre
-        )
-
-    def historial_ordenes(self) -> list[OrdenRegistro]:
-        return self._trading.historial()
-```
-
-## `patterns/flyweight.py`
-
-```python
-"""Flyweight: reutiliza la metadata inmutable de pares de mercado."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass
-from threading import RLock
-
-
-@dataclass(frozen=True, slots=True)
-class ParMercadoFlyweight:
-    """Estado intrínseco compartido para un par base/cotización."""
-
-    simbolo_base: str
-    simbolo_cotizacion: str
-    par: str
-
-
-class ParMercadoFactory:
-    """Mantiene un registro compartido de pares de mercado normalizados.
-
-    La clave está formada por el símbolo base y la divisa de cotización. Así,
-    los adapters de distintos exchanges reutilizan el mismo objeto inmutable
-    para, por ejemplo, BTC/USDT, sin compartir datos variables del exchange.
-    """
-
-    _flyweights: dict[tuple[str, str], ParMercadoFlyweight] = {}
-    _lock = RLock()
-
-    @classmethod
-    def obtener(
-        cls,
-        simbolo_base: str,
-        simbolo_cotizacion: str = "USDT",
-    ) -> ParMercadoFlyweight:
-        if simbolo_base is None or simbolo_cotizacion is None:
-            raise ValueError("Los símbolos base y de cotización son obligatorios.")
-        base = str(simbolo_base).strip().upper()
-        cotizacion = str(simbolo_cotizacion).strip().upper()
-        if not base or not cotizacion:
-            raise ValueError("Los símbolos base y de cotización son obligatorios.")
-        if "/" in base or "/" in cotizacion:
-            raise ValueError("Los símbolos no deben contener '/'.")
-
-        clave = (base, cotizacion)
-        with cls._lock:
-            flyweight = cls._flyweights.get(clave)
-            if flyweight is None:
-                flyweight = ParMercadoFlyweight(
-                    simbolo_base=base,
-                    simbolo_cotizacion=cotizacion,
-                    par=f"{base}/{cotizacion}",
-                )
-                cls._flyweights[clave] = flyweight
-            return flyweight
-
-    @classmethod
-    def cantidad_compartidos(cls) -> int:
-        """Devuelve la cantidad de pares únicos que mantiene el registro."""
-        with cls._lock:
-            return len(cls._flyweights)
-
-    @classmethod
-    def limpiar_cache(cls) -> None:
-        """Limpia el registro compartido; se utiliza principalmente en pruebas."""
-        with cls._lock:
-            cls._flyweights.clear()
-```
-
-## `patterns/proxy.py`
-
-```python
-"""Proxy virtual: controla y difiere la creación del adapter de mercado."""
-
-from __future__ import annotations
-
-from threading import RLock
-from typing import Callable
-
-from models.asset import ActivoDigital
-from patterns.abstract_factory import Mercado
-
-
-class MercadoProxy(Mercado):
-    """Intermediario compatible con ``Mercado`` que inicializa el target al usarlo.
-
-    La fábrica del adapter se ejecuta solo ante la primera consulta válida. El
-    proxy también valida el tipo de activo antes de crear o invocar el objeto
-    real. El bloqueo protege la inicialización cuando hay consultas concurrentes.
-    """
-
-    def __init__(self, creador_mercado: Callable[[], Mercado]) -> None:
-        if not callable(creador_mercado):
-            raise TypeError("El creador del mercado debe ser invocable.")
-        self._creador_mercado: Callable[[], Mercado] | None = creador_mercado
-        self._mercado_real: Mercado | None = None
-        self._lock = RLock()
-
-    @property
-    def inicializado(self) -> bool:
-        """Indica si el adapter real ya fue creado."""
-        with self._lock:
-            return self._mercado_real is not None
-
-    def _obtener_mercado_real(self) -> Mercado:
-        with self._lock:
-            if self._mercado_real is None:
-                if self._creador_mercado is None:
-                    raise RuntimeError("No hay un creador disponible para el mercado.")
-                mercado = self._creador_mercado()
-                if not isinstance(mercado, Mercado):
-                    raise TypeError("El creador debe devolver una implementación de Mercado.")
-                self._mercado_real = mercado
-                self._creador_mercado = None
-            return self._mercado_real
-
-    def consultar_precio(self, activo: ActivoDigital) -> float:
-        if not isinstance(activo, ActivoDigital):
-            raise TypeError("La consulta requiere un objeto ActivoDigital válido.")
-        if not str(activo.simbolo).strip():
-            raise ValueError("El activo debe tener un símbolo válido.")
-        mercado = self._obtener_mercado_real()
-        return float(mercado.consultar_precio(activo))
-```
-
-## `patterns/command.py`
-
-```python
-"""Command: encapsula y despacha solicitudes de órdenes simuladas."""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-from typing import Protocol
-
-from models.order import OrdenRegistro
-from patterns.builder import PlataformaTrading
-
-
-class ReceptorOrdenes(Protocol):
-    """Contrato mínimo del servicio que recibe la operación encapsulada."""
-
-    def crear_orden(
-        self,
-        tipo_orden: str,
-        lado: str,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str,
-        precio_objetivo: float | None = None,
-    ) -> tuple[PlataformaTrading, OrdenRegistro]: ...
-
-    def ejecutar_orden(
-        self,
-        plataforma: PlataformaTrading,
-        registro: OrdenRegistro,
-    ) -> OrdenRegistro: ...
-
-
-class ComandoOrden(ABC):
-    """Abstracción de una solicitud de operación ejecutable."""
-
-    @abstractmethod
-    def ejecutar(self) -> OrdenRegistro:
-        """Ejecuta la solicitud y devuelve su registro de operación."""
-
-
-class ComandoEjecutarOrden(ComandoOrden):
-    """Encapsula los parámetros y la ejecución completa de una orden."""
-
-    def __init__(
-        self,
-        receptor: ReceptorOrdenes,
-        tipo_orden: str,
-        lado: str,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str,
-        precio_objetivo: float | None = None,
-    ) -> None:
-        self._receptor = receptor
-        self._tipo_orden = tipo_orden
-        self._lado = lado
-        self._exchange = exchange
-        self._activo_nombre = activo_nombre
-        self._cantidad = float(cantidad)
-        self._cartera_nombre = cartera_nombre
-        self._precio_objetivo = precio_objetivo
-        self._resultado: OrdenRegistro | None = None
-
-    @property
-    def resultado(self) -> OrdenRegistro | None:
-        """Registro producido por el comando, si ya fue ejecutado."""
-        return self._resultado
-
-    def ejecutar(self) -> OrdenRegistro:
-        # El mismo objeto de comando representa una sola solicitud; repetir su
-        # ejecución devuelve el resultado previo y no genera otra operación.
-        if self._resultado is not None:
-            return self._resultado
-
-        plataforma, registro = self._receptor.crear_orden(
-            self._tipo_orden,
-            self._lado,
-            self._exchange,
-            self._activo_nombre,
-            self._cantidad,
-            self._cartera_nombre,
-            self._precio_objetivo,
-        )
-        self._resultado = self._receptor.ejecutar_orden(plataforma, registro)
-        return self._resultado
-
-
-class InvocadorOrdenes:
-    """Centraliza el despacho y mantiene el historial de comandos completados."""
-
-    def __init__(self) -> None:
-        self._historial: list[ComandoOrden] = []
-
-    def ejecutar(self, comando: ComandoOrden) -> OrdenRegistro:
-        resultado = comando.ejecutar()
-        if not any(registrado is comando for registrado in self._historial):
-            self._historial.append(comando)
-        return resultado
-
-    def historial(self) -> tuple[ComandoOrden, ...]:
-        """Devuelve una vista inmutable del historial de comandos despachados."""
-        return tuple(self._historial)
-
-    @property
-    def cantidad_ejecutados(self) -> int:
-        return len(self._historial)
-```
-
-## `patterns/chain_of_responsibility.py`
-
-```python
-"""Cadena de validación previa para las órdenes simuladas."""
-
-from __future__ import annotations
-
-import math
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
-from models.asset import ActivoDigital
-from models.order import LadoOrden, TipoOrden
-from models.portfolio import Cartera
-
-
-@dataclass(frozen=True, slots=True)
-class ContextoValidacionOrden:
-    """Datos necesarios para evaluar una solicitud antes de despacharla."""
-
-    tipo_orden: TipoOrden
-    lado: LadoOrden
-    exchange: str
-    activo: ActivoDigital
-    cantidad: float
-    cartera: Cartera
-    precio_objetivo: float | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ResultadoValidacion:
-    """Resultado uniforme producido por la cadena de validadores."""
-
-    valido: bool
-    mensaje: str
-
-
-class ManejadorValidacionOrden(ABC):
-    """Manejador base que delega la solicitud al siguiente eslabón."""
-
-    def __init__(self, siguiente: ManejadorValidacionOrden | None = None) -> None:
-        self._siguiente = siguiente
-
-    def enlazar(self, siguiente: ManejadorValidacionOrden) -> ManejadorValidacionOrden:
-        """Conecta el siguiente manejador y permite construir la cadena."""
-        self._siguiente = siguiente
-        return siguiente
-
-    def manejar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
-        error = self.validar(contexto)
-        if error:
-            return ResultadoValidacion(False, error)
-        if self._siguiente is not None:
-            return self._siguiente.manejar(contexto)
-        return ResultadoValidacion(True, "Validación previa completada.")
-
-    @abstractmethod
-    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
-        """Devuelve un mensaje si la solicitud debe detenerse."""
-
-
-class ValidarSolicitudOrden(ManejadorValidacionOrden):
-    """Comprueba los datos generales y los valores admitidos por la plataforma."""
-
-    EXCHANGES_PERMITIDOS = frozenset({"A", "B", "C"})
-
-    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
-        if not isinstance(contexto.tipo_orden, TipoOrden):
-            return "El tipo de orden no es válido."
-        if not isinstance(contexto.lado, LadoOrden):
-            return "El lado de la operación debe ser COMPRA o VENTA."
-        if str(contexto.exchange).upper().strip() not in self.EXCHANGES_PERMITIDOS:
-            return "El exchange seleccionado no está disponible. Use A, B o C."
-        try:
-            cantidad = float(contexto.cantidad)
-        except (TypeError, ValueError):
-            return "La cantidad de la orden debe ser numérica."
-        if not math.isfinite(cantidad) or cantidad <= 0:
-            return "La cantidad de la orden debe ser mayor que cero."
-        return None
-
-
-class ValidarActivoCantidad(ManejadorValidacionOrden):
-    """Verifica el activo y aplica sus reglas particulares de cantidad."""
-
-    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
-        if not isinstance(contexto.activo, ActivoDigital):
-            return "El activo solicitado no corresponde a un activo digital válido."
-        try:
-            contexto.activo.validar_cantidad(float(contexto.cantidad))
-        except (TypeError, ValueError) as exc:
-            return str(exc)
-        return None
-
-
-class ValidarCarteraOrden(ManejadorValidacionOrden):
-    """Comprueba que la solicitud esté asociada a una cartera existente."""
-
-    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
-        if not isinstance(contexto.cartera, Cartera):
-            return "La cartera seleccionada no está disponible."
-        if not str(contexto.cartera.nombre).strip():
-            return "La cartera debe tener un nombre válido."
-        return None
-
-
-class ValidarPrecioObjetivo(ManejadorValidacionOrden):
-    """Valida el precio objetivo requerido por las órdenes Limit y Stop Loss."""
-
-    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
-        requiere_objetivo = contexto.tipo_orden in (TipoOrden.LIMIT, TipoOrden.STOP_LOSS)
-        if requiere_objetivo and contexto.precio_objetivo is None:
-            return "La orden Limit o Stop Loss requiere un precio objetivo."
-        if contexto.precio_objetivo is not None:
-            try:
-                objetivo = float(contexto.precio_objetivo)
-            except (TypeError, ValueError):
-                return "El precio objetivo debe ser numérico."
-            if not math.isfinite(objetivo) or objetivo <= 0:
-                return "El precio objetivo debe ser mayor que cero."
-        if not requiere_objetivo and contexto.precio_objetivo is not None:
-            return "La orden Market no utiliza un precio objetivo."
-        return None
-
-
-class CadenaValidacionOrden:
-    """Punto de entrada que ejecuta los validadores en el orden establecido."""
-
-    def __init__(self, primero: ManejadorValidacionOrden | None = None) -> None:
-        self._primero = primero or self.crear_cadena_por_defecto()
-
-    @staticmethod
-    def crear_cadena_por_defecto() -> ManejadorValidacionOrden:
-        solicitud = ValidarSolicitudOrden()
-        solicitud.enlazar(ValidarActivoCantidad()).enlazar(
-            ValidarCarteraOrden()
-        ).enlazar(ValidarPrecioObjetivo())
-        return solicitud
-
-    def validar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
-        if self._primero is None:
-            return ResultadoValidacion(True, "No hay validadores configurados.")
-        return self._primero.manejar(contexto)
-```
-
 
 ## `models/__init__.py`
 
@@ -1897,6 +377,1654 @@ class Cartera:
         }
 ```
 
+## `patterns/__init__.py`
+
+```python
+"""Patrones GoF de la plataforma."""
+```
+
+## `patterns/abstract_factory.py`
+
+```python
+"""Abstract Factory para familias de productos de cada exchange."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from patterns.bridge import (
+    EjecutorOrden,
+    ExchangeAExecutor,
+    ExchangeBExecutor,
+    ExchangeCExecutor,
+)
+
+
+class Mercado(ABC):
+    """Producto abstracto de consulta de mercado."""
+
+    @abstractmethod
+    def consultar_precio(self, activo):
+        pass
+
+
+class FabricaExchange(ABC):
+    """Abstract Factory."""
+
+    @abstractmethod
+    def crear_mercado(self) -> Mercado:
+        pass
+
+    @abstractmethod
+    def crear_orden(self) -> EjecutorOrden:
+        pass
+
+    @property
+    @abstractmethod
+    def codigo(self) -> str:
+        pass
+
+
+class MercadoExchangeA:
+    """Alias conceptual mantenido para el ejercicio anterior."""
+
+    pass
+
+
+class MercadoExchangeB:
+    pass
+
+
+class MercadoExchangeC:
+    pass
+
+
+class FabricaExchangeA(FabricaExchange):
+    codigo = "A"
+
+    def crear_mercado(self) -> Mercado:
+        from patterns.adapter import ExchangeAAdapter
+        return ExchangeAAdapter()
+
+    def crear_orden(self) -> EjecutorOrden:
+        return ExchangeAExecutor()
+
+
+class FabricaExchangeB(FabricaExchange):
+    codigo = "B"
+
+    def crear_mercado(self) -> Mercado:
+        from patterns.adapter import ExchangeBAdapter
+        return ExchangeBAdapter()
+
+    def crear_orden(self) -> EjecutorOrden:
+        return ExchangeBExecutor()
+
+
+class FabricaExchangeC(FabricaExchange):
+    codigo = "C"
+
+    def crear_mercado(self) -> Mercado:
+        from patterns.adapter import ExchangeCAdapter
+        return ExchangeCAdapter()
+
+    def crear_orden(self) -> EjecutorOrden:
+        return ExchangeCExecutor()
+
+
+# Compatibilidad explícita con los nombres históricos del avance.
+from patterns.adapter import ExchangeAAdapter, ExchangeBAdapter, ExchangeCAdapter
+
+MercadoExchangeA = ExchangeAAdapter
+MercadoExchangeB = ExchangeBAdapter
+MercadoExchangeC = ExchangeCAdapter
+OrdenExchangeA = ExchangeAExecutor
+OrdenExchangeB = ExchangeBExecutor
+OrdenExchangeC = ExchangeCExecutor
+```
+
+## `patterns/adapter.py`
+
+```python
+"""Adapter: normaliza APIs de exchanges con estructuras incompatibles."""
+
+from __future__ import annotations
+
+from models.asset import ActivoDigital
+from patterns.abstract_factory import Mercado
+from patterns.flyweight import ParMercadoFactory
+from patterns.singleton import ExchangeConnectionManager
+
+
+class ApiExchangeA:
+    """API externa simulada: devuelve lastPrice."""
+
+    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
+        self.manager = manager or ExchangeConnectionManager()
+
+    def get_ticker(self, pair: str) -> dict[str, object]:
+        price = self.manager.get_exchange_price("A", pair)
+        if price is None:
+            raise KeyError(f"El par {pair} no existe en Exchange A.")
+        return {"symbol": pair, "lastPrice": price}
+
+
+class ApiExchangeB:
+    """API externa simulada: exige base/quote y entrega data.amount."""
+
+    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
+        self.manager = manager or ExchangeConnectionManager()
+
+    def fetch_market(self, base: str, quote: str) -> dict[str, object]:
+        pair = f"{base.upper()}/{quote.upper()}"
+        price = self.manager.get_exchange_price("B", pair)
+        if price is None:
+            raise KeyError(f"El par {pair} no existe en Exchange B.")
+        return {"data": {"pair": pair, "amount": str(price)}}
+
+
+class ApiExchangeC:
+    """API externa simulada: devuelve ticker.last y un formato alternativo."""
+
+    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
+        self.manager = manager or ExchangeConnectionManager()
+
+    def obtener_ticker(self, par: str) -> dict[str, object]:
+        price = self.manager.get_exchange_price("C", par)
+        if price is None:
+            raise KeyError(f"El par {par} no existe en Exchange C.")
+        return {"ticker": {"pair": par, "last": price, "currency": "USDT"}}
+
+
+def _market_pair_for_asset(activo: ActivoDigital):
+    """Obtiene el estado intrínseco compartido del par base/cotización."""
+    return ParMercadoFactory.obtener(activo.simbolo, "USDT")
+
+
+def _pair_for_asset(activo: ActivoDigital) -> str:
+    return _market_pair_for_asset(activo).par
+
+
+class ExchangeAAdapter(Mercado):
+    """Target: Mercado.consultar_precio(activo)."""
+
+    def __init__(self, api: ApiExchangeA | None = None) -> None:
+        self.api = api or ApiExchangeA()
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        response = self.api.get_ticker(_pair_for_asset(activo))
+        return float(response["lastPrice"])
+
+
+class ExchangeBAdapter(Mercado):
+    def __init__(self, api: ApiExchangeB | None = None) -> None:
+        self.api = api or ApiExchangeB()
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        par = _market_pair_for_asset(activo)
+        response = self.api.fetch_market(par.simbolo_base, par.simbolo_cotizacion)
+        return float(response["data"]["amount"])
+
+
+class ExchangeCAdapter(Mercado):
+    def __init__(self, api: ApiExchangeC | None = None) -> None:
+        self.api = api or ApiExchangeC()
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        response = self.api.obtener_ticker(_pair_for_asset(activo))
+        return float(response["ticker"]["last"])
+```
+
+## `patterns/bridge.py`
+
+```python
+"""Bridge: tipos de orden desacoplados de exchanges."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from models.asset import ActivoDigital
+from models.order import ExecutionResult, EstadoOrden, LadoOrden, TipoOrden
+
+
+class EjecutorOrden(ABC):
+    """Implementador del Bridge y producto abstracto para Abstract Factory."""
+
+    nombre_exchange = "Exchange"
+
+    @abstractmethod
+    def ejecutar(
+        self,
+        orden: "OrdenTrading",
+        activo: ActivoDigital,
+        lado: LadoOrden,
+        cantidad: float,
+        precio: float,
+    ) -> ExecutionResult:
+        pass
+
+    def _resultado_ejecutado(
+        self,
+        activo: ActivoDigital,
+        cantidad: float,
+        precio: float,
+    ) -> ExecutionResult:
+        return ExecutionResult(
+            status=EstadoOrden.EJECUTADA,
+            message=(
+                f"Orden {activo.nombre} ejecutada en {self.nombre_exchange}."
+            ),
+            total=precio * cantidad,
+        )
+
+    def _resultado_pendiente(self, mensaje: str) -> ExecutionResult:
+        return ExecutionResult(
+            status=EstadoOrden.PENDIENTE,
+            message=mensaje,
+            total=0.0,
+        )
+
+
+class OrdenTrading(ABC):
+    """Abstracción del Bridge para el tipo de orden."""
+
+    tipo: TipoOrden = TipoOrden.MARKET
+
+    def __init__(self, executor: EjecutorOrden) -> None:
+        self.executor = executor
+
+    def cambiar_executor(self, executor: EjecutorOrden) -> None:
+        self.executor = executor
+
+    @abstractmethod
+    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
+        pass
+
+    def ejecutar(
+        self,
+        activo: ActivoDigital,
+        lado: LadoOrden,
+        cantidad: float,
+        precio: float,
+    ) -> ExecutionResult:
+        lado_enum = lado if isinstance(lado, LadoOrden) else LadoOrden(str(lado).upper())
+        activo.validar_cantidad(cantidad)
+        self.validar(lado_enum, cantidad, precio)
+        return self.executor.ejecutar(self, activo, lado_enum, cantidad, precio)
+
+
+class OrdenMarket(OrdenTrading):
+    tipo = TipoOrden.MARKET
+
+    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
+        if cantidad <= 0 or precio <= 0:
+            raise ValueError("Una orden Market requiere cantidad y precio positivos.")
+
+
+class OrdenLimit(OrdenTrading):
+    tipo = TipoOrden.LIMIT
+
+    def __init__(self, executor: EjecutorOrden, precio_limite: float) -> None:
+        super().__init__(executor)
+        if precio_limite <= 0:
+            raise ValueError("El precio límite debe ser mayor que cero.")
+        self.precio_limite = float(precio_limite)
+
+    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
+        if cantidad <= 0 or precio <= 0:
+            raise ValueError("Una orden Limit requiere cantidad y precio positivos.")
+
+
+class OrdenStopLoss(OrdenTrading):
+    tipo = TipoOrden.STOP_LOSS
+
+    def __init__(self, executor: EjecutorOrden, precio_activacion: float) -> None:
+        super().__init__(executor)
+        if precio_activacion <= 0:
+            raise ValueError("El precio de activación debe ser mayor que cero.")
+        self.precio_activacion = float(precio_activacion)
+
+    def validar(self, lado: LadoOrden, cantidad: float, precio: float) -> None:
+        if cantidad <= 0 or precio <= 0:
+            raise ValueError("Una orden Stop Loss requiere cantidad y precio positivos.")
+
+
+class ExchangeAExecutor(EjecutorOrden):
+    nombre_exchange = "Exchange A"
+
+    def ejecutar(self, orden, activo, lado, cantidad, precio) -> ExecutionResult:
+        if isinstance(orden, OrdenLimit):
+            condicion = precio <= orden.precio_limite if lado == LadoOrden.COMPRA else precio >= orden.precio_limite
+            if not condicion:
+                return self._resultado_pendiente(
+                    f"Orden Limit pendiente: el precio actual (${precio:,.2f}) "
+                    f"no cumple el límite (${orden.precio_limite:,.2f})."
+                )
+
+        if isinstance(orden, OrdenStopLoss):
+            condicion = precio >= orden.precio_activacion if lado == LadoOrden.COMPRA else precio <= orden.precio_activacion
+            if not condicion:
+                return self._resultado_pendiente(
+                    f"Stop Loss pendiente: el precio actual (${precio:,.2f}) "
+                    f"no ha alcanzado la activación (${orden.precio_activacion:,.2f})."
+                )
+
+        return self._resultado_ejecutado(activo, cantidad, precio)
+
+
+class ExchangeBExecutor(ExchangeAExecutor):
+    nombre_exchange = "Exchange B"
+
+
+class ExchangeCExecutor(ExchangeAExecutor):
+    nombre_exchange = "Exchange C"
+```
+
+## `patterns/builder.py`
+
+```python
+"""Builder que ensambla los patrones de la plataforma."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from models.asset import ActivoDigital
+from models.portfolio import Cartera
+from patterns.abstract_factory import (
+    FabricaExchange,
+    FabricaExchangeA,
+    FabricaExchangeB,
+    FabricaExchangeC,
+)
+from patterns.bridge import OrdenLimit, OrdenMarket, OrdenStopLoss, OrdenTrading
+from patterns.factory_method import (
+    CreadorCriptomoneda,
+    CreadorNFT,
+    CreadorToken,
+)
+from patterns.prototype import GestorCarteras
+from patterns.singleton import ExchangeConnectionManager
+
+
+@dataclass(slots=True)
+class PlataformaTrading:
+    """Producto final ensamblado por Builder."""
+
+    sistema_ordenes: ExchangeConnectionManager | None = None
+    creador: object | None = None
+    activo: ActivoDigital | None = None
+    fabrica_exchange: FabricaExchange | None = None
+    cartera: Cartera | None = None
+    gestor_carteras: GestorCarteras | None = None
+    orden: OrdenTrading | None = None
+
+    @property
+    def exchange(self) -> str:
+        if self.fabrica_exchange is None:
+            return ""
+        return self.fabrica_exchange.codigo
+
+
+class PlataformaTradingBuilder:
+    """Builder fluido para escenarios de trading completos."""
+
+    def __init__(self) -> None:
+        self.sistema_ordenes: ExchangeConnectionManager | None = None
+        self.creador = None
+        self.activo: ActivoDigital | None = None
+        self.fabrica_exchange: FabricaExchange | None = None
+        self.cartera: Cartera | None = None
+        self.gestor_carteras: GestorCarteras | None = None
+        self.orden: OrdenTrading | None = None
+
+    def configurar_singleton(self) -> "PlataformaTradingBuilder":
+        self.sistema_ordenes = ExchangeConnectionManager()
+        return self
+
+    def configurar_operacion(
+        self,
+        tipo_activo: str,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> "PlataformaTradingBuilder":
+        creadores = {
+            "CRIPTO": CreadorCriptomoneda,
+            "CRYPTO": CreadorCriptomoneda,
+            "TOKEN": CreadorToken,
+            "NFT": CreadorNFT,
+        }
+        key = tipo_activo.upper().strip()
+        aliases = {
+            "CRIPTOMONEDA": "CRIPTO",
+            "CRYPTOCURRENCY": "CRIPTO",
+            "TOKEN": "TOKEN",
+            "NFT": "NFT",
+            "CRYPTO": "CRIPTO",
+        }
+        key = aliases.get(key, key)
+        creador_cls = creadores.get(key)
+        if creador_cls is None:
+            raise ValueError("Tipo de activo no válido. Use CRIPTO, TOKEN o NFT.")
+        self.creador = creador_cls()
+        self.activo = self.creador.crear_activo(nombre, precio, simbolo)
+        return self
+
+    def configurar_exchange(
+        self,
+        exchange: str | FabricaExchange,
+    ) -> "PlataformaTradingBuilder":
+        if isinstance(exchange, FabricaExchange):
+            self.fabrica_exchange = exchange
+            return self
+
+        factories = {
+            "A": FabricaExchangeA,
+            "B": FabricaExchangeB,
+            "C": FabricaExchangeC,
+        }
+        factory_cls = factories.get(str(exchange).upper().strip())
+        if factory_cls is None:
+            raise ValueError("Exchange no válido. Use A, B o C.")
+        self.fabrica_exchange = factory_cls()
+        return self
+
+    def configurar_cartera(
+        self,
+        cartera: Cartera,
+        gestor_carteras: GestorCarteras | None = None,
+    ) -> "PlataformaTradingBuilder":
+        self.cartera = cartera
+        self.gestor_carteras = gestor_carteras
+        return self
+
+    def configurar_orden(
+        self,
+        tipo_orden: str,
+        precio_objetivo: float | None = None,
+    ) -> "PlataformaTradingBuilder":
+        if self.fabrica_exchange is None:
+            raise ValueError("Primero debe configurar el exchange.")
+
+        executor = self.fabrica_exchange.crear_orden()
+        key = tipo_orden.upper().replace("-", " ").strip()
+        if key == "MARKET":
+            self.orden = OrdenMarket(executor)
+        elif key == "LIMIT":
+            if precio_objetivo is None:
+                raise ValueError("La orden Limit requiere un precio objetivo.")
+            self.orden = OrdenLimit(executor, precio_objetivo)
+        elif key in {"STOP LOSS", "STOPLOSS"}:
+            if precio_objetivo is None:
+                raise ValueError("La orden Stop Loss requiere un precio de activación.")
+            self.orden = OrdenStopLoss(executor, precio_objetivo)
+        else:
+            raise ValueError("Tipo de orden no válido.")
+        return self
+
+    def build(self) -> PlataformaTrading:
+        if self.sistema_ordenes is None:
+            self.configurar_singleton()
+        if self.fabrica_exchange is None:
+            raise ValueError("Debe configurar un exchange.")
+        if self.cartera is None:
+            raise ValueError("Debe configurar una cartera.")
+
+        return PlataformaTrading(
+            sistema_ordenes=self.sistema_ordenes,
+            creador=self.creador,
+            activo=self.activo,
+            fabrica_exchange=self.fabrica_exchange,
+            cartera=self.cartera,
+            gestor_carteras=self.gestor_carteras,
+            orden=self.orden,
+        )
+```
+
+## `patterns/chain_of_responsibility.py`
+
+```python
+"""Cadena de validación previa para las órdenes simuladas."""
+
+from __future__ import annotations
+
+import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from models.asset import ActivoDigital
+from models.order import LadoOrden, TipoOrden
+from models.portfolio import Cartera
+
+
+@dataclass(frozen=True, slots=True)
+class ContextoValidacionOrden:
+    """Datos necesarios para evaluar una solicitud antes de despacharla."""
+
+    tipo_orden: TipoOrden
+    lado: LadoOrden
+    exchange: str
+    activo: ActivoDigital
+    cantidad: float
+    cartera: Cartera
+    precio_objetivo: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ResultadoValidacion:
+    """Resultado uniforme producido por la cadena de validadores."""
+
+    valido: bool
+    mensaje: str
+
+
+class ManejadorValidacionOrden(ABC):
+    """Manejador base que delega la solicitud al siguiente eslabón."""
+
+    def __init__(self, siguiente: ManejadorValidacionOrden | None = None) -> None:
+        self._siguiente = siguiente
+
+    def enlazar(self, siguiente: ManejadorValidacionOrden) -> ManejadorValidacionOrden:
+        """Conecta el siguiente manejador y permite construir la cadena."""
+        self._siguiente = siguiente
+        return siguiente
+
+    def manejar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
+        error = self.validar(contexto)
+        if error:
+            return ResultadoValidacion(False, error)
+        if self._siguiente is not None:
+            return self._siguiente.manejar(contexto)
+        return ResultadoValidacion(True, "Validación previa completada.")
+
+    @abstractmethod
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        """Devuelve un mensaje si la solicitud debe detenerse."""
+
+
+class ValidarSolicitudOrden(ManejadorValidacionOrden):
+    """Comprueba los datos generales y los valores admitidos por la plataforma."""
+
+    EXCHANGES_PERMITIDOS = frozenset({"A", "B", "C"})
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.tipo_orden, TipoOrden):
+            return "El tipo de orden no es válido."
+        if not isinstance(contexto.lado, LadoOrden):
+            return "El lado de la operación debe ser COMPRA o VENTA."
+        if str(contexto.exchange).upper().strip() not in self.EXCHANGES_PERMITIDOS:
+            return "El exchange seleccionado no está disponible. Use A, B o C."
+        try:
+            cantidad = float(contexto.cantidad)
+        except (TypeError, ValueError):
+            return "La cantidad de la orden debe ser numérica."
+        if not math.isfinite(cantidad) or cantidad <= 0:
+            return "La cantidad de la orden debe ser mayor que cero."
+        return None
+
+
+class ValidarActivoCantidad(ManejadorValidacionOrden):
+    """Verifica el activo y aplica sus reglas particulares de cantidad."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.activo, ActivoDigital):
+            return "El activo solicitado no corresponde a un activo digital válido."
+        try:
+            contexto.activo.validar_cantidad(float(contexto.cantidad))
+        except (TypeError, ValueError) as exc:
+            return str(exc)
+        return None
+
+
+class ValidarCarteraOrden(ManejadorValidacionOrden):
+    """Comprueba que la solicitud esté asociada a una cartera existente."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        if not isinstance(contexto.cartera, Cartera):
+            return "La cartera seleccionada no está disponible."
+        if not str(contexto.cartera.nombre).strip():
+            return "La cartera debe tener un nombre válido."
+        return None
+
+
+class ValidarPrecioObjetivo(ManejadorValidacionOrden):
+    """Valida el precio objetivo requerido por las órdenes Limit y Stop Loss."""
+
+    def validar(self, contexto: ContextoValidacionOrden) -> str | None:
+        requiere_objetivo = contexto.tipo_orden in (TipoOrden.LIMIT, TipoOrden.STOP_LOSS)
+        if requiere_objetivo and contexto.precio_objetivo is None:
+            return "La orden Limit o Stop Loss requiere un precio objetivo."
+        if contexto.precio_objetivo is not None:
+            try:
+                objetivo = float(contexto.precio_objetivo)
+            except (TypeError, ValueError):
+                return "El precio objetivo debe ser numérico."
+            if not math.isfinite(objetivo) or objetivo <= 0:
+                return "El precio objetivo debe ser mayor que cero."
+        if not requiere_objetivo and contexto.precio_objetivo is not None:
+            return "La orden Market no utiliza un precio objetivo."
+        return None
+
+
+class CadenaValidacionOrden:
+    """Punto de entrada que ejecuta los validadores en el orden establecido."""
+
+    def __init__(self, primero: ManejadorValidacionOrden | None = None) -> None:
+        self._primero = primero or self.crear_cadena_por_defecto()
+
+    @staticmethod
+    def crear_cadena_por_defecto() -> ManejadorValidacionOrden:
+        solicitud = ValidarSolicitudOrden()
+        solicitud.enlazar(ValidarActivoCantidad()).enlazar(
+            ValidarCarteraOrden()
+        ).enlazar(ValidarPrecioObjetivo())
+        return solicitud
+
+    def validar(self, contexto: ContextoValidacionOrden) -> ResultadoValidacion:
+        if self._primero is None:
+            return ResultadoValidacion(True, "No hay validadores configurados.")
+        return self._primero.manejar(contexto)
+```
+
+## `patterns/command.py`
+
+```python
+"""Command: encapsula y despacha solicitudes de órdenes simuladas."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Protocol
+
+from models.order import OrdenRegistro
+from patterns.builder import PlataformaTrading
+
+
+class ReceptorOrdenes(Protocol):
+    """Contrato mínimo del servicio que recibe la operación encapsulada."""
+
+    def crear_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> tuple[PlataformaTrading, OrdenRegistro]: ...
+
+    def ejecutar_orden(
+        self,
+        plataforma: PlataformaTrading,
+        registro: OrdenRegistro,
+    ) -> OrdenRegistro: ...
+
+
+class ComandoOrden(ABC):
+    """Abstracción de una solicitud de operación ejecutable."""
+
+    @abstractmethod
+    def ejecutar(self) -> OrdenRegistro:
+        """Ejecuta la solicitud y devuelve su registro de operación."""
+
+
+class ComandoEjecutarOrden(ComandoOrden):
+    """Encapsula los parámetros y la ejecución completa de una orden."""
+
+    def __init__(
+        self,
+        receptor: ReceptorOrdenes,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> None:
+        self._receptor = receptor
+        self._tipo_orden = tipo_orden
+        self._lado = lado
+        self._exchange = exchange
+        self._activo_nombre = activo_nombre
+        self._cantidad = float(cantidad)
+        self._cartera_nombre = cartera_nombre
+        self._precio_objetivo = precio_objetivo
+        self._resultado: OrdenRegistro | None = None
+
+    @property
+    def resultado(self) -> OrdenRegistro | None:
+        """Registro producido por el comando, si ya fue ejecutado."""
+        return self._resultado
+
+    def ejecutar(self) -> OrdenRegistro:
+        # El mismo objeto de comando representa una sola solicitud; repetir su
+        # ejecución devuelve el resultado previo y no genera otra operación.
+        if self._resultado is not None:
+            return self._resultado
+
+        plataforma, registro = self._receptor.crear_orden(
+            self._tipo_orden,
+            self._lado,
+            self._exchange,
+            self._activo_nombre,
+            self._cantidad,
+            self._cartera_nombre,
+            self._precio_objetivo,
+        )
+        self._resultado = self._receptor.ejecutar_orden(plataforma, registro)
+        return self._resultado
+
+
+class InvocadorOrdenes:
+    """Centraliza el despacho y mantiene el historial de comandos completados."""
+
+    def __init__(self) -> None:
+        self._historial: list[ComandoOrden] = []
+
+    def ejecutar(self, comando: ComandoOrden) -> OrdenRegistro:
+        resultado = comando.ejecutar()
+        if not any(registrado is comando for registrado in self._historial):
+            self._historial.append(comando)
+        return resultado
+
+    def historial(self) -> tuple[ComandoOrden, ...]:
+        """Devuelve una vista inmutable del historial de comandos despachados."""
+        return tuple(self._historial)
+
+    @property
+    def cantidad_ejecutados(self) -> int:
+        return len(self._historial)
+```
+
+## `patterns/composite.py`
+
+```python
+"""Composite para agrupar posiciones de una cartera de forma uniforme."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.portfolio import Cartera, Posicion
+
+
+class ComponenteCartera(ABC):
+    """Componente común para hojas y compuestos del árbol de cartera."""
+
+    def __init__(self, nombre: str) -> None:
+        self.nombre = nombre
+
+    @abstractmethod
+    def valor(self, precios: dict[str, float]) -> float:
+        """Calcula el valor representado por el componente."""
+
+    @abstractmethod
+    def cantidad_componentes(self) -> int:
+        """Devuelve el número de posiciones hoja contenidas."""
+
+
+class PosicionActivo(ComponenteCartera):
+    """Leaf: representa una posición individual de la cartera."""
+
+    def __init__(self, posicion: "Posicion") -> None:
+        super().__init__(posicion.nombre)
+        self.posicion = posicion
+
+    def valor(self, precios: dict[str, float]) -> float:
+        precio = precios.get(self.posicion.nombre, self.posicion.precio_promedio)
+        return self.posicion.cantidad * precio
+
+    def cantidad_componentes(self) -> int:
+        return 1
+
+
+class GrupoActivos(ComponenteCartera):
+    """Composite: agrupa posiciones y otros grupos de forma recursiva."""
+
+    def __init__(self, nombre: str) -> None:
+        super().__init__(nombre)
+        self._componentes: list[ComponenteCartera] = []
+
+    def agregar(self, componente: ComponenteCartera) -> None:
+        if componente is self:
+            raise ValueError("Un grupo no puede agregarse a sí mismo.")
+        self._componentes.append(componente)
+
+    def quitar(self, componente: ComponenteCartera) -> None:
+        self._componentes.remove(componente)
+
+    @property
+    def componentes(self) -> tuple[ComponenteCartera, ...]:
+        return tuple(self._componentes)
+
+    def valor(self, precios: dict[str, float]) -> float:
+        return sum(componente.valor(precios) for componente in self._componentes)
+
+    def cantidad_componentes(self) -> int:
+        return sum(componente.cantidad_componentes() for componente in self._componentes)
+
+
+def construir_composite(cartera: "Cartera") -> GrupoActivos:
+    """Construye el árbol Composite de las posiciones actuales de una cartera."""
+    raiz = GrupoActivos(cartera.nombre)
+    for posicion in cartera.activos:
+        raiz.agregar(PosicionActivo(posicion))
+    return raiz
+```
+
+## `patterns/decorator.py`
+
+```python
+"""Decorator para añadir trazabilidad a las consultas de mercado."""
+
+from __future__ import annotations
+
+from abc import ABC
+from datetime import datetime
+
+from models.asset import ActivoDigital
+from patterns.abstract_factory import Mercado
+
+
+class MercadoDecorator(Mercado, ABC):
+    """Decorator base que conserva el contrato de Mercado."""
+
+    def __init__(self, mercado: Mercado) -> None:
+        self.mercado = mercado
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        return self.mercado.consultar_precio(activo)
+
+
+class MercadoConAuditoria(MercadoDecorator):
+    """Añade historial de consultas sin modificar el adapter original."""
+
+    def __init__(self, mercado: Mercado, exchange: str) -> None:
+        super().__init__(mercado)
+        self.exchange = str(exchange).upper()
+        self._consultas = 0
+        self._ultima_consulta: dict[str, object] | None = None
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        precio = super().consultar_precio(activo)
+        self._consultas += 1
+        self._ultima_consulta = {
+            "exchange": self.exchange,
+            "activo": activo.nombre,
+            "simbolo": activo.simbolo,
+            "precio": float(precio),
+            "timestamp": datetime.now(),
+        }
+        return float(precio)
+
+    @property
+    def consultas(self) -> int:
+        return self._consultas
+
+    @property
+    def ultima_consulta(self) -> dict[str, object] | None:
+        return None if self._ultima_consulta is None else dict(self._ultima_consulta)
+
+    def resumen(self) -> dict[str, object]:
+        return {
+            "exchange": self.exchange,
+            "consultas": self.consultas,
+            "ultima_consulta": self.ultima_consulta,
+        }
+```
+
+## `patterns/facade.py`
+
+```python
+"""Facade: punto de acceso unificado a los servicios de la plataforma."""
+
+from __future__ import annotations
+
+from models.asset import ActivoDigital
+from models.order import OrdenRegistro
+from models.portfolio import Cartera
+from patterns.builder import PlataformaTrading
+from patterns.singleton import ExchangeConnectionManager
+from services.market_service import MarketRow, MarketService
+from services.portfolio_service import PortfolioService
+from services.trading_service import TradingService
+
+
+class TradingPlatformFacade:
+    """Simplifica la interacción con mercado, carteras, órdenes y riesgo.
+
+    La interfaz gráfica utiliza esta fachada en lugar de crear y coordinar los
+    servicios por separado. La lógica detallada continúa encapsulada en cada
+    servicio especializado.
+    """
+
+    def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
+        self._manager = manager or ExchangeConnectionManager()
+        self._market = MarketService(self._manager)
+        self._portfolios = PortfolioService()
+        self._trading = TradingService(self._market, self._portfolios)
+
+    @property
+    def manager(self) -> ExchangeConnectionManager:
+        """Expone el gestor compartido para administrar el ciclo de vida local."""
+        return self._manager
+
+    def iniciar(self) -> None:
+        """Inicia la actualización local de precios simulados."""
+        self._manager.start()
+
+    def cerrar(self) -> None:
+        """Detiene la actualización local al cerrar la aplicación."""
+        self._manager.stop()
+
+    # Mercado y activos
+    def actualizar_mercado(self) -> None:
+        self._market.actualizar_mercado()
+
+    def crear_activo(
+        self,
+        tipo: str,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        return self._market.crear_activo(tipo, nombre, precio, simbolo)
+
+    def obtener_activos(self) -> list[ActivoDigital]:
+        return self._market.obtener_activos()
+
+    def obtener_activo(self, nombre: str) -> ActivoDigital:
+        return self._market.obtener_activo(nombre)
+
+    def obtener_precio(self, activo: ActivoDigital | str, exchange: str = "A") -> float:
+        return self._market.obtener_precio(activo, exchange)
+
+    def obtener_auditoria_mercado(self, exchange: str) -> dict[str, object]:
+        return self._market.obtener_auditoria_mercado(exchange)
+
+    def tabla_mercado(
+        self,
+        previous: dict[tuple[str, str], float] | None = None,
+    ) -> list[MarketRow]:
+        return self._market.tabla_mercado(previous)
+
+    # Carteras y control de riesgo
+    def listar_carteras(self) -> list[Cartera]:
+        return self._portfolios.listar_carteras()
+
+    def obtener_cartera(self, nombre: str) -> Cartera:
+        return self._portfolios.obtener_cartera(nombre)
+
+    def recargar_cartera(self, nombre: str, monto: float, moneda: str) -> None:
+        self._portfolios.recargar(nombre, monto, moneda)
+
+    def clonar_cartera(self, nombre: str, porcentaje: float) -> Cartera:
+        return self._portfolios.clonar_cartera(nombre, porcentaje)
+
+    def configurar_riesgo(
+        self,
+        nombre: str,
+        exposicion: float,
+        perdida: float,
+        stop_loss: float,
+        take_profit: float,
+    ) -> None:
+        self._portfolios.configurar_riesgo(
+            nombre, exposicion, perdida, stop_loss, take_profit
+        )
+
+    def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
+        return self._portfolios.obtener_balance(nombre, precios)
+
+    def evaluar_riesgo(self, cartera: Cartera, precios: dict[str, float]) -> dict[str, object]:
+        return self._portfolios.evaluar_riesgo(cartera, precios)
+
+    # Órdenes y simulación de operaciones
+    def crear_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> tuple[PlataformaTrading, OrdenRegistro]:
+        return self._trading.crear_orden(
+            tipo_orden,
+            lado,
+            exchange,
+            activo_nombre,
+            cantidad,
+            cartera_nombre,
+            precio_objetivo,
+        )
+
+    def ejecutar_orden(
+        self,
+        plataforma: PlataformaTrading,
+        registro: OrdenRegistro,
+    ) -> OrdenRegistro:
+        return self._trading.ejecutar_orden(plataforma, registro)
+
+    def crear_y_ejecutar_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> OrdenRegistro:
+        """Coordina la construcción, validación y ejecución de una orden."""
+        plataforma, registro = self.crear_orden(
+            tipo_orden,
+            lado,
+            exchange,
+            activo_nombre,
+            cantidad,
+            cartera_nombre,
+            precio_objetivo,
+        )
+        return self.ejecutar_orden(plataforma, registro)
+
+    def comprar_activo(
+        self,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str = "Cartera Principal",
+    ) -> OrdenRegistro:
+        return self._trading.comprar_activo(
+            exchange, activo_nombre, cantidad, cartera_nombre
+        )
+
+    def vender_activo(
+        self,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str = "Cartera Principal",
+    ) -> OrdenRegistro:
+        return self._trading.vender_activo(
+            exchange, activo_nombre, cantidad, cartera_nombre
+        )
+
+    def historial_ordenes(self) -> list[OrdenRegistro]:
+        return self._trading.historial()
+```
+
+## `patterns/factory_method.py`
+
+```python
+"""Factory Method para criptomonedas, tokens y NFT."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from models.asset import ActivoDigital, Criptomoneda, NFT, Token
+
+
+class CreadorActivo(ABC):
+    """Creator abstracto del patrón Factory Method."""
+
+    @abstractmethod
+    def crear_activo(
+        self,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        pass
+
+    def comprar_activo(
+        self,
+        nombre: str,
+        precio: float,
+        cantidad: float,
+        simbolo: str | None = None,
+    ):
+        activo = self.crear_activo(nombre, precio, simbolo)
+        return activo.comprar(cantidad)
+
+    def vender_activo(
+        self,
+        nombre: str,
+        precio: float,
+        cantidad: float,
+        simbolo: str | None = None,
+    ):
+        activo = self.crear_activo(nombre, precio, simbolo)
+        return activo.vender(cantidad)
+
+    def mostrar_activo(
+        self,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> dict[str, object]:
+        activo = self.crear_activo(nombre, precio, simbolo)
+        return activo.mostrar_informacion()
+
+
+class CreadorCriptomoneda(CreadorActivo):
+    def crear_activo(
+        self,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        return Criptomoneda(nombre, precio, simbolo)
+
+
+class CreadorToken(CreadorActivo):
+    def crear_activo(
+        self,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        return Token(nombre, precio, simbolo)
+
+
+class CreadorNFT(CreadorActivo):
+    def crear_activo(
+        self,
+        nombre: str,
+        precio: float,
+        simbolo: str | None = None,
+    ) -> ActivoDigital:
+        return NFT(nombre, precio, simbolo)
+```
+
+## `patterns/flyweight.py`
+
+```python
+"""Flyweight: reutiliza la metadata inmutable de pares de mercado."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from threading import RLock
+
+
+@dataclass(frozen=True, slots=True)
+class ParMercadoFlyweight:
+    """Estado intrínseco compartido para un par base/cotización."""
+
+    simbolo_base: str
+    simbolo_cotizacion: str
+    par: str
+
+
+class ParMercadoFactory:
+    """Mantiene un registro compartido de pares de mercado normalizados.
+
+    La clave está formada por el símbolo base y la divisa de cotización. Así,
+    los adapters de distintos exchanges reutilizan el mismo objeto inmutable
+    para, por ejemplo, BTC/USDT, sin compartir datos variables del exchange.
+    """
+
+    _flyweights: dict[tuple[str, str], ParMercadoFlyweight] = {}
+    _lock = RLock()
+
+    @classmethod
+    def obtener(
+        cls,
+        simbolo_base: str,
+        simbolo_cotizacion: str = "USDT",
+    ) -> ParMercadoFlyweight:
+        if simbolo_base is None or simbolo_cotizacion is None:
+            raise ValueError("Los símbolos base y de cotización son obligatorios.")
+        base = str(simbolo_base).strip().upper()
+        cotizacion = str(simbolo_cotizacion).strip().upper()
+        if not base or not cotizacion:
+            raise ValueError("Los símbolos base y de cotización son obligatorios.")
+        if "/" in base or "/" in cotizacion:
+            raise ValueError("Los símbolos no deben contener '/'.")
+
+        clave = (base, cotizacion)
+        with cls._lock:
+            flyweight = cls._flyweights.get(clave)
+            if flyweight is None:
+                flyweight = ParMercadoFlyweight(
+                    simbolo_base=base,
+                    simbolo_cotizacion=cotizacion,
+                    par=f"{base}/{cotizacion}",
+                )
+                cls._flyweights[clave] = flyweight
+            return flyweight
+
+    @classmethod
+    def cantidad_compartidos(cls) -> int:
+        """Devuelve la cantidad de pares únicos que mantiene el registro."""
+        with cls._lock:
+            return len(cls._flyweights)
+
+    @classmethod
+    def limpiar_cache(cls) -> None:
+        """Limpia el registro compartido; se utiliza principalmente en pruebas."""
+        with cls._lock:
+            cls._flyweights.clear()
+```
+
+## `patterns/iterator.py`
+
+```python
+"""Iterator: recorre colecciones de trading sin exponer su almacenamiento."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
+
+
+class IteradorTrading(Iterator[T], Generic[T]):
+    """Iterador secuencial sobre una instantánea estable de elementos."""
+
+    def __init__(self, elementos: tuple[T, ...]) -> None:
+        self._elementos = elementos
+        self._indice = 0
+
+    def __next__(self) -> T:
+        if self._indice >= len(self._elementos):
+            raise StopIteration
+        elemento = self._elementos[self._indice]
+        self._indice += 1
+        return elemento
+
+
+class ColeccionTrading(Iterable[T], Generic[T]):
+    """Agregado iterable reutilizable para posiciones e historial de órdenes."""
+
+    def __init__(self, elementos: Iterable[T]) -> None:
+        self._elementos = tuple(elementos)
+
+    def __iter__(self) -> IteradorTrading[T]:
+        return IteradorTrading(self._elementos)
+
+    def __len__(self) -> int:
+        return len(self._elementos)
+```
+
+## `patterns/mediator.py`
+
+```python
+"""Mediator: coordina eventos entre los servicios de trading."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from collections.abc import Callable
+
+
+class MediadorTrading:
+    """Centraliza la comunicación sin acoplar directamente los servicios."""
+
+    ANTES_ACTUALIZAR_CARTERA = "antes_actualizar_cartera"
+    ORDEN_PROCESADA = "orden_procesada"
+    RESTAURAR_CARTERA = "restaurar_cartera"
+
+    def __init__(self) -> None:
+        self._receptores: dict[str, list[Callable[..., object]]] = defaultdict(list)
+
+    def registrar(self, evento: str, receptor: Callable[..., object]) -> None:
+        if not evento or not callable(receptor):
+            raise ValueError("El evento y su receptor son obligatorios.")
+        if receptor not in self._receptores[evento]:
+            self._receptores[evento].append(receptor)
+
+    def notificar(self, evento: str, **datos: object) -> tuple[object, ...]:
+        return tuple(receptor(**datos) for receptor in tuple(self._receptores[evento]))
+```
+
+## `patterns/memento.py`
+
+```python
+"""Memento: conserva y restaura estados completos de una cartera."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from datetime import datetime
+
+
+class CarteraMemento:
+    """Instantánea privada del estado de una cartera en un momento dado."""
+
+    __slots__ = ("_estado", "motivo", "creado_en")
+
+    def __init__(self, cartera, motivo: str = "Punto de control") -> None:
+        self._estado = deepcopy(vars(cartera))
+        self.motivo = motivo
+        self.creado_en = datetime.now()
+
+    def restaurar(self, cartera) -> None:
+        """Restaura el contenido sin reemplazar la instancia de la cartera."""
+        estado = deepcopy(self._estado)
+        vars(cartera).clear()
+        vars(cartera).update(estado)
+
+
+class HistorialCartera:
+    """Caretaker que limita y administra las instantáneas de una cartera."""
+
+    def __init__(self, capacidad: int = 20) -> None:
+        if capacidad < 1:
+            raise ValueError("La capacidad debe ser al menos uno.")
+        self._capacidad = capacidad
+        self._estados: list[CarteraMemento] = []
+
+    def guardar(self, cartera, motivo: str = "Punto de control") -> CarteraMemento:
+        memento = CarteraMemento(cartera, motivo)
+        self._estados.append(memento)
+        del self._estados[:-self._capacidad]
+        return memento
+
+    def deshacer(self, cartera) -> CarteraMemento:
+        if not self._estados:
+            raise ValueError("No hay estados guardados para restaurar.")
+        memento = self._estados.pop()
+        memento.restaurar(cartera)
+        return memento
+
+    def listar(self) -> tuple[CarteraMemento, ...]:
+        return tuple(self._estados)
+
+    def __len__(self) -> int:
+        return len(self._estados)
+```
+
+## `patterns/prototype.py`
+
+```python
+"""Prototype para clonar carteras y sus configuraciones."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from models.portfolio import Cartera
+
+
+class Prototype(ABC):
+    @abstractmethod
+    def clonar(self):
+        pass
+
+
+class GestorCarteras:
+    """Administrador de copias del prototipo principal."""
+
+    def __init__(self) -> None:
+        self.prototipo: Cartera | None = None
+
+    def establecer_prototipo(self, cartera: Cartera) -> None:
+        self.prototipo = cartera
+
+    def crear_copia(self, nombre: str, porcentaje_recargado: float = 100.0) -> Cartera:
+        if self.prototipo is None:
+            raise ValueError("No existe un prototipo de cartera configurado.")
+
+        nueva = self.prototipo.clonar()
+        nueva.nombre = nombre
+        nueva.porcentaje_recargado = porcentaje_recargado
+        factor = porcentaje_recargado / 100.0
+        nueva.saldo_cop = self.prototipo.saldo_cop * factor
+        nueva.saldo_usd = self.prototipo.saldo_usd * factor
+        nueva.capital_referencia_usd = self.prototipo.capital_referencia_usd * factor
+        return nueva
+
+
+def crear_cartera_principal(
+    nombre: str = "Cartera Principal",
+    limite_exposicion: float = 50.0,
+    limite_perdida: float = 10.0,
+) -> Cartera:
+    cartera = Cartera(nombre)
+    cartera.configurar_riesgo(limite_exposicion, limite_perdida)
+    return cartera
+
+
+def crear_gestor_carteras(cartera: Cartera) -> GestorCarteras:
+    gestor = GestorCarteras()
+    gestor.establecer_prototipo(cartera)
+    return gestor
+
+
+def clonar_cartera(
+    gestor: GestorCarteras,
+    nombre: str,
+    porcentaje_recargado: float,
+) -> Cartera:
+    try:
+        porcentaje = float(porcentaje_recargado)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("El porcentaje debe ser numérico.") from exc
+
+    if not 0 <= porcentaje <= 100:
+        raise ValueError("El porcentaje debe estar entre 0% y 100%.")
+
+    if not nombre.strip():
+        raise ValueError("El nombre de la cartera no puede estar vacío.")
+
+    return gestor.crear_copia(nombre.strip(), porcentaje)
+
+
+def obtener_precio_singleton(nombre: str, api) -> float | None:
+    pares = {
+        "Bitcoin": "BTC/USDT",
+        "Ethereum": "ETH/USDT",
+        "Solana": "SOL/USDT",
+    }
+    par = pares.get(nombre)
+    return None if par is None else api.get_price(par)
+```
+
+## `patterns/proxy.py`
+
+```python
+"""Proxy virtual: controla y difiere la creación del adapter de mercado."""
+
+from __future__ import annotations
+
+from threading import RLock
+from typing import Callable
+
+from models.asset import ActivoDigital
+from patterns.abstract_factory import Mercado
+
+
+class MercadoProxy(Mercado):
+    """Intermediario compatible con ``Mercado`` que inicializa el target al usarlo.
+
+    La fábrica del adapter se ejecuta solo ante la primera consulta válida. El
+    proxy también valida el tipo de activo antes de crear o invocar el objeto
+    real. El bloqueo protege la inicialización cuando hay consultas concurrentes.
+    """
+
+    def __init__(self, creador_mercado: Callable[[], Mercado]) -> None:
+        if not callable(creador_mercado):
+            raise TypeError("El creador del mercado debe ser invocable.")
+        self._creador_mercado: Callable[[], Mercado] | None = creador_mercado
+        self._mercado_real: Mercado | None = None
+        self._lock = RLock()
+
+    @property
+    def inicializado(self) -> bool:
+        """Indica si el adapter real ya fue creado."""
+        with self._lock:
+            return self._mercado_real is not None
+
+    def _obtener_mercado_real(self) -> Mercado:
+        with self._lock:
+            if self._mercado_real is None:
+                if self._creador_mercado is None:
+                    raise RuntimeError("No hay un creador disponible para el mercado.")
+                mercado = self._creador_mercado()
+                if not isinstance(mercado, Mercado):
+                    raise TypeError("El creador debe devolver una implementación de Mercado.")
+                self._mercado_real = mercado
+                self._creador_mercado = None
+            return self._mercado_real
+
+    def consultar_precio(self, activo: ActivoDigital) -> float:
+        if not isinstance(activo, ActivoDigital):
+            raise TypeError("La consulta requiere un objeto ActivoDigital válido.")
+        if not str(activo.simbolo).strip():
+            raise ValueError("El activo debe tener un símbolo válido.")
+        mercado = self._obtener_mercado_real()
+        return float(mercado.consultar_precio(activo))
+```
+
+## `patterns/singleton.py`
+
+```python
+"""Singleton: fuente única de verdad para precios simulados."""
+
+from __future__ import annotations
+
+import random
+import threading
+import time
+from typing import ClassVar
+
+
+class ExchangeConnectionManager:
+    """Administra una única instancia del caché de mercado.
+
+    No conoce PySide6 y no imprime en consola. Puede ejecutar una pequeña
+    simulación en segundo plano para mantener el comportamiento dinámico del
+    ejercicio original.
+    """
+
+    _instance: ClassVar["ExchangeConnectionManager | None"] = None
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+
+    _initial_exchange_prices = {
+        "A": {
+            "BTC/USDT": 60000.00,
+            "ETH/USDT": 3000.00,
+            "SOL/USDT": 145.20,
+            "LINK/USDT": 15.00,
+            "MATIC/USDT": 0.50,
+            "CRYPTOART001/USDT": 2500.00,
+        },
+        "B": {
+            "BTC/USDT": 60500.00,
+            "ETH/USDT": 3050.00,
+            "SOL/USDT": 146.10,
+            "LINK/USDT": 15.50,
+            "MATIC/USDT": 0.55,
+            "CRYPTOART001/USDT": 2600.00,
+        },
+        "C": {
+            "BTC/USDT": 61000.00,
+            "ETH/USDT": 3095.00,
+            "SOL/USDT": 147.40,
+            "LINK/USDT": 16.00,
+            "MATIC/USDT": 0.57,
+            "CRYPTOART001/USDT": 2700.00,
+        },
+    }
+
+    _canonical_prices = {
+        "BTC/USDT": 64500.50,
+        "ETH/USDT": 3450.75,
+        "SOL/USDT": 145.20,
+    }
+
+    def __new__(cls) -> "ExchangeConnectionManager":
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialize()
+            return cls._instance
+
+    def _initialize(self) -> None:
+        self._prices = {
+            exchange: dict(prices)
+            for exchange, prices in self._initial_exchange_prices.items()
+        }
+        self._canonical = dict(self._canonical_prices)
+        self._data_lock = threading.RLock()
+        self.running = False
+        self._thread: threading.Thread | None = None
+
+    def start(self, interval: float = 1.0) -> None:
+        if self.running:
+            return
+        self.running = True
+        self._thread = threading.Thread(
+            target=self._update_loop,
+            args=(interval,),
+            daemon=True,
+            name="market-simulator",
+        )
+        self._thread.start()
+
+    def _update_loop(self, interval: float) -> None:
+        while self.running:
+            time.sleep(max(0.25, interval))
+            self.simulate_market_update()
+
+    def simulate_market_update(self) -> None:
+        with self._data_lock:
+            for exchange_prices in self._prices.values():
+                for pair, value in list(exchange_prices.items()):
+                    exchange_prices[pair] = round(
+                        max(0.0001, value * (1.0 + random.uniform(-0.003, 0.003))),
+                        4 if value < 1 else 2,
+                    )
+
+            for pair, value in list(self._canonical.items()):
+                self._canonical[pair] = round(
+                    max(0.0001, value * (1.0 + random.uniform(-0.003, 0.003))),
+                    4 if value < 1 else 2,
+                )
+
+    def get_price(self, pair: str) -> float | None:
+        """Mantiene el contrato original para el precio canónico."""
+        with self._data_lock:
+            return self._canonical.get(pair)
+
+    def get_exchange_price(self, exchange: str, pair: str) -> float | None:
+        exchange = str(exchange).upper()
+        with self._data_lock:
+            return self._prices.get(exchange, {}).get(pair)
+
+    def set_cached_price(self, exchange: str, pair: str, price: float) -> None:
+        with self._data_lock:
+            self._prices.setdefault(exchange.upper(), {})[pair] = float(price)
+
+    def snapshot(self, exchange: str | None = None) -> dict:
+        with self._data_lock:
+            if exchange is None:
+                return {key: dict(value) for key, value in self._prices.items()}
+            return dict(self._prices.get(exchange.upper(), {}))
+
+    def stop(self) -> None:
+        self.running = False
+
+    @classmethod
+    def reset_for_tests(cls) -> None:
+        """Reinicia el Singleton únicamente para pruebas automatizadas."""
+        with cls._lock:
+            if cls._instance is not None:
+                cls._instance.stop()
+            cls._instance = None
+```
+
 ## `services/__init__.py`
 
 ```python
@@ -2046,6 +2174,98 @@ class MarketService:
         return rows
 ```
 
+## `services/order_pattern_service.py`
+
+```python
+"""Coordina Chain of Responsibility y Command para despachar órdenes."""
+
+from __future__ import annotations
+
+from models.order import LadoOrden, OrdenRegistro, TipoOrden
+from patterns.chain_of_responsibility import (
+    CadenaValidacionOrden,
+    ContextoValidacionOrden,
+)
+from patterns.command import ComandoEjecutarOrden, ComandoOrden, InvocadorOrdenes
+
+
+class ServicioDespachoOrdenes:
+    """Valida y despacha órdenes usando las interfaces públicas de la fachada.
+
+    Este servicio añade el flujo Command + Chain sin modificar la fachada ni
+    el servicio de trading existentes. La fachada actúa como receptor del
+    comando y continúa delegando la lógica de negocio en sus servicios actuales.
+    """
+
+    def __init__(self, fachada) -> None:
+        self._fachada = fachada
+        self._cadena_validacion = CadenaValidacionOrden()
+        self._invocador = InvocadorOrdenes()
+
+    def ejecutar_orden(
+        self,
+        tipo_orden: str,
+        lado: str,
+        exchange: str,
+        activo_nombre: str,
+        cantidad: float,
+        cartera_nombre: str,
+        precio_objetivo: float | None = None,
+    ) -> OrdenRegistro:
+        """Valida la solicitud y luego la ejecuta como un comando."""
+        tipo_enum = self._parse_tipo(tipo_orden)
+        try:
+            lado_enum = LadoOrden(str(lado).upper().strip())
+        except ValueError as exc:
+            raise ValueError("El lado de la operación debe ser COMPRA o VENTA.") from exc
+
+        exchange_normalizado = str(exchange).upper().strip()
+        activo = self._fachada.obtener_activo(activo_nombre)
+        cartera = self._fachada.obtener_cartera(cartera_nombre)
+        contexto = ContextoValidacionOrden(
+            tipo_orden=tipo_enum,
+            lado=lado_enum,
+            exchange=exchange_normalizado,
+            activo=activo,
+            cantidad=cantidad,
+            cartera=cartera,
+            precio_objetivo=precio_objetivo,
+        )
+        resultado = self._cadena_validacion.validar(contexto)
+        if not resultado.valido:
+            raise ValueError(resultado.mensaje)
+
+        comando = ComandoEjecutarOrden(
+            receptor=self._fachada,
+            tipo_orden=tipo_enum.value,
+            lado=lado_enum.value,
+            exchange=exchange_normalizado,
+            activo_nombre=activo.nombre,
+            cantidad=cantidad,
+            cartera_nombre=cartera.nombre,
+            precio_objetivo=precio_objetivo,
+        )
+        return self._invocador.ejecutar(comando)
+
+    def historial_comandos(self) -> tuple[ComandoOrden, ...]:
+        """Devuelve los comandos completados por este despachador."""
+        return self._invocador.historial()
+
+    @staticmethod
+    def _parse_tipo(tipo_orden: str) -> TipoOrden:
+        key = str(tipo_orden).upper().replace("-", " ").strip()
+        aliases = {
+            "MARKET": TipoOrden.MARKET,
+            "LIMIT": TipoOrden.LIMIT,
+            "STOP LOSS": TipoOrden.STOP_LOSS,
+            "STOPLOSS": TipoOrden.STOP_LOSS,
+        }
+        try:
+            return aliases[key]
+        except KeyError as exc:
+            raise ValueError("Tipo de orden no válido.") from exc
+```
+
 ## `services/portfolio_service.py`
 
 ```python
@@ -2054,6 +2274,8 @@ class MarketService:
 from __future__ import annotations
 
 from patterns.composite import construir_composite
+from patterns.iterator import ColeccionTrading
+from patterns.memento import HistorialCartera
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
 from models.portfolio import Cartera
 
@@ -2067,6 +2289,57 @@ class PortfolioService:
         principal.capital_referencia_usd = principal.saldo_usd
         self._portfolios: dict[str, Cartera] = {principal.nombre: principal}
         self.gestor = crear_gestor_carteras(principal)
+        self._mementos: dict[str, HistorialCartera] = {}
+        self._eventos_trading: list[dict[str, object]] = []
+
+    def vincular_mediador(self, mediador) -> None:
+        """Registra este servicio como receptor de los eventos del trading."""
+        mediador.registrar(mediador.ANTES_ACTUALIZAR_CARTERA, self._guardar_estado_previo)
+        mediador.registrar(mediador.ORDEN_PROCESADA, self._registrar_evento_orden)
+        mediador.registrar(mediador.RESTAURAR_CARTERA, self._restaurar_estado_previo)
+
+    def _historial_de(self, nombre: str) -> HistorialCartera:
+        return self._mementos.setdefault(nombre, HistorialCartera())
+
+    def _guardar_estado_previo(self, *, cartera: Cartera, registro) -> None:
+        motivo = f"Antes de {registro.lado.value} {registro.activo}"
+        self._historial_de(cartera.nombre).guardar(cartera, motivo)
+
+    def _restaurar_estado_previo(self, *, cartera: Cartera) -> None:
+        historial = self._mementos.get(cartera.nombre)
+        if historial:
+            historial.deshacer(cartera)
+
+    def _registrar_evento_orden(self, *, cartera: Cartera, registro) -> None:
+        self._eventos_trading.append({
+            "orden_id": registro.id,
+            "cartera": cartera.nombre,
+            "activo": registro.activo,
+            "estado": registro.estado.value,
+        })
+        del self._eventos_trading[:-100]
+
+    def guardar_punto_control(self, nombre: str, motivo: str = "Punto de control manual"):
+        """Guarda una instantánea solicitada explícitamente."""
+        return self._historial_de(nombre).guardar(self.obtener_cartera(nombre), motivo)
+
+    def restaurar_ultimo_estado(self, nombre: str):
+        """Restaura el último estado conservado para la cartera indicada."""
+        historial = self._mementos.get(nombre)
+        if not historial:
+            raise ValueError("La cartera no tiene estados guardados para restaurar.")
+        return historial.deshacer(self.obtener_cartera(nombre))
+
+    def listar_puntos_control(self, nombre: str) -> tuple:
+        historial = self._mementos.get(nombre)
+        return historial.listar() if historial else ()
+
+    def eventos_trading(self) -> tuple[dict[str, object], ...]:
+        return tuple(dict(evento) for evento in self._eventos_trading)
+
+    def iterar_posiciones(self, nombre: str) -> ColeccionTrading:
+        """Entrega un recorrido independiente de las posiciones actuales."""
+        return ColeccionTrading(self.obtener_cartera(nombre).activos)
 
     def listar_carteras(self) -> list[Cartera]:
         return list(self._portfolios.values())
@@ -2167,6 +2440,8 @@ from models.order import EstadoOrden, LadoOrden, OrdenRegistro, TipoOrden
 from services.market_service import MarketService
 from services.portfolio_service import PortfolioService
 from patterns.builder import PlataformaTrading, PlataformaTradingBuilder
+from patterns.iterator import ColeccionTrading
+from patterns.mediator import MediadorTrading
 
 
 class TradingService:
@@ -2176,6 +2451,8 @@ class TradingService:
         self.market_service = market_service
         self.portfolio_service = portfolio_service
         self._history: list[OrdenRegistro] = []
+        self._mediador = MediadorTrading()
+        self.portfolio_service.vincular_mediador(self._mediador)
 
     def crear_orden(
         self,
@@ -2253,18 +2530,39 @@ class TradingService:
         registro.mensaje = resultado.message
 
         if resultado.status == EstadoOrden.EJECUTADA:
-            if registro.lado == LadoOrden.COMPRA:
-                cartera.saldo_usd -= resultado.total
-                cartera.registrar_compra(activo, registro.cantidad, precio)
-            else:
-                vendido = cartera.registrar_venta(activo.nombre, registro.cantidad)
-                if not vendido:
-                    registro.estado = EstadoOrden.RECHAZADA
-                    registro.mensaje = "La venta no pudo actualizar la cartera."
-                    registro.total = 0.0
+            # Mediator coordina el punto de control previo y la actualización
+            # de la cartera sin acoplar el flujo de órdenes al caretaker.
+            self._mediador.notificar(
+                MediadorTrading.ANTES_ACTUALIZAR_CARTERA,
+                cartera=cartera,
+                registro=registro,
+            )
+            try:
+                if registro.lado == LadoOrden.COMPRA:
+                    cartera.saldo_usd -= resultado.total
+                    cartera.registrar_compra(activo, registro.cantidad, precio)
                 else:
-                    cartera.saldo_usd += resultado.total
+                    vendido = cartera.registrar_venta(activo.nombre, registro.cantidad)
+                    if not vendido:
+                        registro.estado = EstadoOrden.RECHAZADA
+                        registro.mensaje = "La venta no pudo actualizar la cartera."
+                        registro.total = 0.0
+                        self._mediador.notificar(
+                            MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
+                        )
+                    else:
+                        cartera.saldo_usd += resultado.total
+            except Exception:
+                self._mediador.notificar(
+                    MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
+                )
+                raise
 
+        self._mediador.notificar(
+            MediadorTrading.ORDEN_PROCESADA,
+            cartera=cartera,
+            registro=registro,
+        )
         self._history.insert(0, registro)
         return registro
 
@@ -2305,6 +2603,10 @@ class TradingService:
     def historial(self) -> list[OrdenRegistro]:
         return list(self._history)
 
+    def iterar_historial(self) -> ColeccionTrading[OrdenRegistro]:
+        """Entrega el historial mediante el patrón Iterator."""
+        return ColeccionTrading(self._history)
+
     @staticmethod
     def _parse_tipo(tipo_orden: str) -> TipoOrden:
         key = str(tipo_orden).upper().replace("-", " ").strip()
@@ -2320,98 +2622,421 @@ class TradingService:
             raise ValueError("Tipo de orden no válido.") from exc
 ```
 
-## `services/order_pattern_service.py`
+## `tests/__init__.py`
 
 ```python
-"""Coordina Chain of Responsibility y Command para despachar órdenes."""
 
-from __future__ import annotations
-
-from models.order import LadoOrden, OrdenRegistro, TipoOrden
-from patterns.chain_of_responsibility import (
-    CadenaValidacionOrden,
-    ContextoValidacionOrden,
-)
-from patterns.command import ComandoEjecutarOrden, ComandoOrden, InvocadorOrdenes
-
-
-class ServicioDespachoOrdenes:
-    """Valida y despacha órdenes usando las interfaces públicas de la fachada.
-
-    Este servicio añade el flujo Command + Chain sin modificar la fachada ni
-    el servicio de trading existentes. La fachada actúa como receptor del
-    comando y continúa delegando la lógica de negocio en sus servicios actuales.
-    """
-
-    def __init__(self, fachada) -> None:
-        self._fachada = fachada
-        self._cadena_validacion = CadenaValidacionOrden()
-        self._invocador = InvocadorOrdenes()
-
-    def ejecutar_orden(
-        self,
-        tipo_orden: str,
-        lado: str,
-        exchange: str,
-        activo_nombre: str,
-        cantidad: float,
-        cartera_nombre: str,
-        precio_objetivo: float | None = None,
-    ) -> OrdenRegistro:
-        """Valida la solicitud y luego la ejecuta como un comando."""
-        tipo_enum = self._parse_tipo(tipo_orden)
-        try:
-            lado_enum = LadoOrden(str(lado).upper().strip())
-        except ValueError as exc:
-            raise ValueError("El lado de la operación debe ser COMPRA o VENTA.") from exc
-
-        exchange_normalizado = str(exchange).upper().strip()
-        activo = self._fachada.obtener_activo(activo_nombre)
-        cartera = self._fachada.obtener_cartera(cartera_nombre)
-        contexto = ContextoValidacionOrden(
-            tipo_orden=tipo_enum,
-            lado=lado_enum,
-            exchange=exchange_normalizado,
-            activo=activo,
-            cantidad=cantidad,
-            cartera=cartera,
-            precio_objetivo=precio_objetivo,
-        )
-        resultado = self._cadena_validacion.validar(contexto)
-        if not resultado.valido:
-            raise ValueError(resultado.mensaje)
-
-        comando = ComandoEjecutarOrden(
-            receptor=self._fachada,
-            tipo_orden=tipo_enum.value,
-            lado=lado_enum.value,
-            exchange=exchange_normalizado,
-            activo_nombre=activo.nombre,
-            cantidad=cantidad,
-            cartera_nombre=cartera.nombre,
-            precio_objetivo=precio_objetivo,
-        )
-        return self._invocador.ejecutar(comando)
-
-    def historial_comandos(self) -> tuple[ComandoOrden, ...]:
-        """Devuelve los comandos completados por este despachador."""
-        return self._invocador.historial()
-
-    @staticmethod
-    def _parse_tipo(tipo_orden: str) -> TipoOrden:
-        key = str(tipo_orden).upper().replace("-", " ").strip()
-        aliases = {
-            "MARKET": TipoOrden.MARKET,
-            "LIMIT": TipoOrden.LIMIT,
-            "STOP LOSS": TipoOrden.STOP_LOSS,
-            "STOPLOSS": TipoOrden.STOP_LOSS,
-        }
-        try:
-            return aliases[key]
-        except KeyError as exc:
-            raise ValueError("Tipo de orden no válido.") from exc
 ```
 
+## `tests/test_patterns.py`
+
+```python
+from models.asset import Criptomoneda, NFT
+from models.portfolio import Cartera, Posicion
+from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB
+from patterns.bridge import ExchangeAExecutor, ExchangeBExecutor, OrdenLimit, OrdenMarket
+from patterns.composite import GrupoActivos, PosicionActivo, construir_composite
+from patterns.decorator import MercadoConAuditoria
+from patterns.flyweight import ParMercadoFactory
+from patterns.factory_method import CreadorCriptomoneda, CreadorNFT
+from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
+from patterns.proxy import MercadoProxy
+from patterns.singleton import ExchangeConnectionManager
+
+
+def test_singleton_is_unique():
+    ExchangeConnectionManager.reset_for_tests()
+    a = ExchangeConnectionManager()
+    b = ExchangeConnectionManager()
+    assert a is b
+
+
+def test_factory_method_creates_expected_products():
+    btc = CreadorCriptomoneda().crear_activo("Bitcoin", 60000, "BTC")
+    nft = CreadorNFT().crear_activo("Art", 100, "ART")
+    assert isinstance(btc, Criptomoneda)
+    assert isinstance(nft, NFT)
+
+
+def test_abstract_factory_creates_market_and_executor():
+    factory = FabricaExchangeA()
+    assert factory.crear_mercado() is not None
+    assert isinstance(factory.crear_orden(), ExchangeAExecutor)
+    assert isinstance(FabricaExchangeB().crear_orden(), ExchangeBExecutor)
+
+
+def test_bridge_market_executes_without_exchange_specific_class():
+    factory = FabricaExchangeA()
+    order = OrdenMarket(factory.crear_orden())
+    asset = Criptomoneda("Bitcoin", 60000, "BTC")
+    result = order.ejecutar(asset, "COMPRA", 0.1, 60000)
+    assert result.status.value == "EJECUTADA"
+
+
+def test_limit_order_can_remain_pending():
+    factory = FabricaExchangeA()
+    order = OrdenLimit(factory.crear_orden(), 59000)
+    asset = Criptomoneda("Bitcoin", 60000, "BTC")
+    result = order.ejecutar(asset, "COMPRA", 0.1, 60000)
+    assert result.status.value == "PENDIENTE"
+
+
+def test_prototype_clone_is_independent():
+    principal = crear_cartera_principal()
+    principal.recargar(1000, "USD")
+    gestor = crear_gestor_carteras(principal)
+    clon = clonar_cartera(gestor, "Conservadora", 50)
+    clon.saldo_usd = 10
+    assert principal.saldo_usd == 1000
+    assert clon.saldo_usd == 10
+
+
+def test_nft_rejects_quantity_other_than_one():
+    factory = FabricaExchangeA()
+    order = OrdenMarket(factory.crear_orden())
+    nft = CreadorNFT().crear_activo("Art", 100, "ART")
+    try:
+        order.ejecutar(nft, "COMPRA", 2, 100)
+    except ValueError as exc:
+        assert "uno en uno" in str(exc)
+    else:
+        raise AssertionError("NFT should reject quantity different from 1")
+
+
+def test_cloned_portfolio_keeps_own_risk_configuration():
+    from services.portfolio_service import PortfolioService
+
+    service = PortfolioService()
+    conservadora = service.clonar_cartera("Conservadora", 50)
+    agresiva = service.clonar_cartera("Agresiva", 80)
+
+    service.configurar_riesgo("Conservadora", 35, 8, 4, 12)
+    service.configurar_riesgo("Agresiva", 80, 25, 10, 30)
+
+    assert conservadora.limite_exposicion == 35
+    assert conservadora.limite_perdida == 8
+    assert conservadora.stop_loss == 4
+    assert conservadora.take_profit == 12
+
+    assert agresiva.limite_exposicion == 80
+    assert agresiva.limite_perdida == 25
+    assert agresiva.stop_loss == 10
+    assert agresiva.take_profit == 30
+
+    principal = service.obtener_cartera("Cartera Principal")
+    assert principal.limite_exposicion == 50
+    assert principal.limite_perdida == 10
+    assert principal.stop_loss == 5
+    assert principal.take_profit == 10
+
+
+def test_composite_aggregates_leaf_positions_and_nested_groups():
+    cartera = Cartera("Cartera de prueba")
+    cartera.activos.extend([
+        Posicion("Bitcoin", 0.1, 60000),
+        Posicion("Ethereum", 2, 3000),
+    ])
+
+    root = construir_composite(cartera)
+    grupo_crypto = GrupoActivos("Cripto")
+    for componente in root.componentes:
+        grupo_crypto.agregar(componente)
+
+    nested = GrupoActivos("Resumen")
+    nested.agregar(grupo_crypto)
+
+    assert root.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
+    assert nested.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
+    assert nested.cantidad_componentes() == 2
+
+
+def test_decorator_adds_market_audit_without_changing_price():
+    from patterns.adapter import ExchangeAAdapter
+
+    manager = ExchangeConnectionManager()
+    manager.reset_for_tests()
+    from patterns.adapter import ApiExchangeA
+
+    manager = ExchangeConnectionManager()
+    adapter = ExchangeAAdapter(ApiExchangeA(manager))
+    decorated = MercadoConAuditoria(adapter, "A")
+    asset = Criptomoneda("Bitcoin", 60000, "BTC")
+
+    price = decorated.consultar_precio(asset)
+    audit = decorated.resumen()
+
+    assert price == 60000.0
+    assert audit["exchange"] == "A"
+    assert audit["consultas"] == 1
+    assert audit["ultima_consulta"]["activo"] == "Bitcoin"
+
+
+def test_facade_unifies_market_portfolio_and_order_flow():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+
+    assert any(asset.nombre == "Bitcoin" for asset in facade.obtener_activos())
+    assert any(portfolio.nombre == "Cartera Principal" for portfolio in facade.listar_carteras())
+
+    registro = facade.crear_y_ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert registro.total > 0
+    assert facade.historial_ordenes()[0].id == registro.id
+    assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None
+
+
+def test_flyweight_reuses_normalized_market_pairs():
+    ParMercadoFactory.limpiar_cache()
+    try:
+        btc_a = ParMercadoFactory.obtener("btc", "usdt")
+        btc_b = ParMercadoFactory.obtener("BTC", "USDT")
+        eth = ParMercadoFactory.obtener("ETH", "USDT")
+
+        assert btc_a is btc_b
+        assert btc_a is not eth
+        assert btc_a.par == "BTC/USDT"
+        assert ParMercadoFactory.cantidad_compartidos() == 2
+        for invalid_symbol in (None, "", "BTC/USDT"):
+            try:
+                ParMercadoFactory.obtener(invalid_symbol, "USDT")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("El Flyweight debe rechazar símbolos inválidos")
+    finally:
+        ParMercadoFactory.limpiar_cache()
+
+
+def test_proxy_validates_and_lazily_creates_market_only_once():
+    from patterns.abstract_factory import Mercado
+
+    class MercadoFalso(Mercado):
+        def consultar_precio(self, activo):
+            return 125.0
+
+    creados = []
+
+    def crear_mercado():
+        mercado = MercadoFalso()
+        creados.append(mercado)
+        return mercado
+
+    proxy = MercadoProxy(crear_mercado)
+    assert proxy.inicializado is False
+
+    try:
+        proxy.consultar_precio("Bitcoin")
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("El proxy debe rechazar objetos que no sean ActivoDigital")
+
+    assert creados == []
+    activo = Criptomoneda("Bitcoin", 60000, "BTC")
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.consultar_precio(activo) == 125.0
+    assert proxy.inicializado is True
+    assert len(creados) == 1
+
+
+def test_market_service_integrates_proxy_before_audited_adapter():
+    from patterns.decorator import MercadoConAuditoria
+    from services.market_service import MarketService
+
+    ExchangeConnectionManager.reset_for_tests()
+    service = MarketService()
+    mercado_decorado = service._markets["A"]
+    assert isinstance(mercado_decorado, MercadoConAuditoria)
+    proxy = mercado_decorado.mercado
+    assert isinstance(proxy, MercadoProxy)
+    assert proxy.inicializado is False
+
+    assert service.obtener_precio("Bitcoin", "A") == 60000.0
+    assert proxy.inicializado is True
+    assert service.obtener_auditoria_mercado("A")["consultas"] == 1
+
+
+def test_chain_of_responsibility_rejects_invalid_request_before_command_dispatch():
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    try:
+        despachador.ejecutar_orden(
+            "MARKET",
+            "COMPRA",
+            "A",
+            "Bitcoin",
+            0,
+            "Cartera Principal",
+        )
+    except ValueError as exc:
+        assert "cantidad" in str(exc).lower()
+    else:
+        raise AssertionError("La cadena debe detener una orden con cantidad inválida")
+
+    assert despachador.historial_comandos() == ()
+    assert facade.historial_ordenes() == []
+
+
+def test_command_dispatches_order_once_and_keeps_command_history():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+    from services.order_pattern_service import ServicioDespachoOrdenes
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    despachador = ServicioDespachoOrdenes(facade)
+
+    registro = despachador.ejecutar_orden(
+        "MARKET",
+        "COMPRA",
+        "A",
+        "Bitcoin",
+        0.001,
+        "Cartera Principal",
+    )
+
+    comandos = despachador.historial_comandos()
+    assert registro.estado == EstadoOrden.EJECUTADA
+    assert len(comandos) == 1
+    assert comandos[0].resultado is registro
+
+    # Repetir el mismo comando devuelve el resultado existente y no duplica
+    # la operación en el historial ni vuelve a descontar saldo de la cartera.
+    saldo_despues_de_compra = facade.obtener_cartera("Cartera Principal").saldo_usd
+    resultado_repetido = comandos[0].ejecutar()
+    assert resultado_repetido is registro
+    assert facade.obtener_cartera("Cartera Principal").saldo_usd == saldo_despues_de_compra
+    assert len(facade.historial_ordenes()) == 1
+    assert len(despachador.historial_comandos()) == 1
+
+
+def test_mediator_notifies_only_registered_receptors():
+    from patterns.mediator import MediadorTrading
+
+    mediator = MediadorTrading()
+    received = []
+    mediator.registrar("orden", lambda **data: received.append(data["id"]))
+    mediator.notificar("orden", id="ABC123")
+
+    assert received == ["ABC123"]
+    assert mediator.notificar("sin_receptores") == ()
+
+
+def test_memento_restores_complete_portfolio_state_without_replacing_instance():
+    from patterns.memento import HistorialCartera
+
+    cartera = Cartera("Cartera Memento")
+    cartera.recargar(1000, "USD")
+    cartera.activos.append(Posicion("Bitcoin", 0.1, 60000))
+    historial = HistorialCartera(capacidad=2)
+    identidad = id(cartera)
+    historial.guardar(cartera, "Estado inicial")
+
+    cartera.saldo_usd = 25
+    cartera.activos[0].cantidad = 2
+    cartera.configurar_riesgo(30, 5, 3, 8)
+    restaurado = historial.deshacer(cartera)
+
+    assert id(cartera) == identidad
+    assert cartera.saldo_usd == 1000
+    assert cartera.activos[0].cantidad == 0.1
+    assert cartera.limite_exposicion == 100
+    assert restaurado.motivo == "Estado inicial"
+    assert len(historial) == 0
+
+
+def test_iterator_traverses_a_stable_reusable_snapshot():
+    from patterns.iterator import ColeccionTrading
+
+    originales = ["Bitcoin", "Ethereum"]
+    coleccion = ColeccionTrading(originales)
+    originales.append("Solana")
+
+    assert list(coleccion) == ["Bitcoin", "Ethereum"]
+    assert list(coleccion) == ["Bitcoin", "Ethereum"]
+    assert len(coleccion) == 2
+
+
+def test_mediator_and_memento_integrate_with_successful_order_execution():
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    cartera = facade.obtener_cartera("Cartera Principal")
+    saldo_inicial = cartera.saldo_usd
+
+    registro = facade.crear_y_ejecutar_orden(
+        "MARKET", "COMPRA", "A", "Bitcoin", 0.001, cartera.nombre
+    )
+
+    portfolio_service = facade._trading.portfolio_service
+    assert registro.estado.value == "EJECUTADA"
+    assert cartera.saldo_usd < saldo_inicial
+    assert len(portfolio_service.listar_puntos_control(cartera.nombre)) == 1
+    assert portfolio_service.eventos_trading()[-1]["orden_id"] == registro.id
+
+    portfolio_service.restaurar_ultimo_estado(cartera.nombre)
+    assert cartera.saldo_usd == saldo_inicial
+    assert cartera.buscar_posicion("Bitcoin") is None
+
+
+def test_iterator_integrates_with_portfolio_positions_and_order_history():
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    facade.crear_y_ejecutar_orden(
+        "MARKET", "COMPRA", "A", "Bitcoin", 0.001, "Cartera Principal"
+    )
+
+    positions = facade._trading.portfolio_service.iterar_posiciones("Cartera Principal")
+    history = facade._trading.iterar_historial()
+
+    assert [position.nombre for position in positions] == ["Bitcoin"]
+    assert [order.activo for order in history] == ["Bitcoin"]
+
+
+def test_mediator_rolls_back_portfolio_when_order_update_fails(monkeypatch):
+    from patterns.facade import TradingPlatformFacade
+
+    def fail_purchase(_cartera, _activo, _cantidad, _precio):
+        raise RuntimeError("Fallo simulado al actualizar la posición")
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    cartera = facade.obtener_cartera("Cartera Principal")
+    saldo_inicial = cartera.saldo_usd
+    monkeypatch.setattr(Cartera, "registrar_compra", fail_purchase)
+
+    try:
+        facade.crear_y_ejecutar_orden(
+            "MARKET", "COMPRA", "A", "Bitcoin", 0.001, cartera.nombre
+        )
+    except RuntimeError as exc:
+        assert "Fallo simulado" in str(exc)
+    else:
+        raise AssertionError("La actualización simulada debía fallar")
+
+    assert cartera.saldo_usd == saldo_inicial
+    assert cartera.buscar_posicion("Bitcoin") is None
+    assert facade._trading.portfolio_service.listar_puntos_control(cartera.nombre) == ()
+```
 
 ## `ui/__init__.py`
 
@@ -2916,6 +3541,7 @@ class MarketPage(QWidget):
 from __future__ import annotations
 
 from services.order_pattern_service import ServicioDespachoOrdenes
+from patterns.iterator import ColeccionTrading
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -3075,7 +3701,7 @@ class OrdersPage(QWidget):
 
     def refresh(self) -> None:
         self._refresh_combos()
-        history = self.facade.historial_ordenes()
+        history = ColeccionTrading(self.facade.historial_ordenes())
         self.table.setRowCount(len(history))
         for row, order in enumerate(history):
             values = order.to_row()
@@ -3087,9 +3713,11 @@ class OrdersPage(QWidget):
 ## `ui/portfolios_page.py`
 
 ```python
-"""Carteras, Prototype y módulo de riesgo."""
+"""Carteras, Prototype, Iterator y módulo de riesgo."""
 
 from __future__ import annotations
+
+from patterns.iterator import ColeccionTrading
 
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
@@ -3288,9 +3916,10 @@ class PortfoliosPage(QWidget):
         self._refresh_table(cartera)
 
     def _refresh_table(self, cartera) -> None:
+        posiciones = ColeccionTrading(cartera.activos)
         prices = {
             position.nombre: self.facade.obtener_precio(position.nombre, "A")
-            for position in cartera.activos
+            for position in posiciones
         }
         total = cartera.valor_total_usd(prices)
         activos_valor = cartera.valor_activos(prices)
@@ -3302,8 +3931,9 @@ class PortfoliosPage(QWidget):
             f"Exposición: {riesgo['exposicion_pct']:.2f}%  •  Drawdown: {riesgo['drawdown_pct']:.2f}%  •  SL {cartera.stop_loss:.2f}%  •  TP {cartera.take_profit:.2f}%"
         )
 
-        self.table.setRowCount(len(cartera.activos))
-        for row, position in enumerate(cartera.activos):
+        posiciones = ColeccionTrading(cartera.activos)
+        self.table.setRowCount(len(posiciones))
+        for row, position in enumerate(posiciones):
             actual = prices.get(position.nombre, position.precio_promedio)
             value = position.cantidad * actual
             exposure = value / activos_valor * 100 if activos_valor else 0.0
@@ -3330,308 +3960,4 @@ class PortfoliosPage(QWidget):
         self.portfolio_combo.blockSignals(False)
 
         self.load_selected()
-```
-
-## `tests/__init__.py`
-
-```python
-
-```
-
-## `tests/test_patterns.py`
-
-```python
-from models.asset import Criptomoneda, NFT
-from models.portfolio import Cartera, Posicion
-from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB
-from patterns.bridge import ExchangeAExecutor, ExchangeBExecutor, OrdenLimit, OrdenMarket
-from patterns.composite import GrupoActivos, PosicionActivo, construir_composite
-from patterns.decorator import MercadoConAuditoria
-from patterns.flyweight import ParMercadoFactory
-from patterns.factory_method import CreadorCriptomoneda, CreadorNFT
-from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
-from patterns.proxy import MercadoProxy
-from patterns.singleton import ExchangeConnectionManager
-
-
-def test_singleton_is_unique():
-    ExchangeConnectionManager.reset_for_tests()
-    a = ExchangeConnectionManager()
-    b = ExchangeConnectionManager()
-    assert a is b
-
-
-def test_factory_method_creates_expected_products():
-    btc = CreadorCriptomoneda().crear_activo("Bitcoin", 60000, "BTC")
-    nft = CreadorNFT().crear_activo("Art", 100, "ART")
-    assert isinstance(btc, Criptomoneda)
-    assert isinstance(nft, NFT)
-
-
-def test_abstract_factory_creates_market_and_executor():
-    factory = FabricaExchangeA()
-    assert factory.crear_mercado() is not None
-    assert isinstance(factory.crear_orden(), ExchangeAExecutor)
-    assert isinstance(FabricaExchangeB().crear_orden(), ExchangeBExecutor)
-
-
-def test_bridge_market_executes_without_exchange_specific_class():
-    factory = FabricaExchangeA()
-    order = OrdenMarket(factory.crear_orden())
-    asset = Criptomoneda("Bitcoin", 60000, "BTC")
-    result = order.ejecutar(asset, "COMPRA", 0.1, 60000)
-    assert result.status.value == "EJECUTADA"
-
-
-def test_limit_order_can_remain_pending():
-    factory = FabricaExchangeA()
-    order = OrdenLimit(factory.crear_orden(), 59000)
-    asset = Criptomoneda("Bitcoin", 60000, "BTC")
-    result = order.ejecutar(asset, "COMPRA", 0.1, 60000)
-    assert result.status.value == "PENDIENTE"
-
-
-def test_prototype_clone_is_independent():
-    principal = crear_cartera_principal()
-    principal.recargar(1000, "USD")
-    gestor = crear_gestor_carteras(principal)
-    clon = clonar_cartera(gestor, "Conservadora", 50)
-    clon.saldo_usd = 10
-    assert principal.saldo_usd == 1000
-    assert clon.saldo_usd == 10
-
-
-def test_nft_rejects_quantity_other_than_one():
-    factory = FabricaExchangeA()
-    order = OrdenMarket(factory.crear_orden())
-    nft = CreadorNFT().crear_activo("Art", 100, "ART")
-    try:
-        order.ejecutar(nft, "COMPRA", 2, 100)
-    except ValueError as exc:
-        assert "uno en uno" in str(exc)
-    else:
-        raise AssertionError("NFT should reject quantity different from 1")
-
-
-def test_cloned_portfolio_keeps_own_risk_configuration():
-    from services.portfolio_service import PortfolioService
-
-    service = PortfolioService()
-    conservadora = service.clonar_cartera("Conservadora", 50)
-    agresiva = service.clonar_cartera("Agresiva", 80)
-
-    service.configurar_riesgo("Conservadora", 35, 8, 4, 12)
-    service.configurar_riesgo("Agresiva", 80, 25, 10, 30)
-
-    assert conservadora.limite_exposicion == 35
-    assert conservadora.limite_perdida == 8
-    assert conservadora.stop_loss == 4
-    assert conservadora.take_profit == 12
-
-    assert agresiva.limite_exposicion == 80
-    assert agresiva.limite_perdida == 25
-    assert agresiva.stop_loss == 10
-    assert agresiva.take_profit == 30
-
-    principal = service.obtener_cartera("Cartera Principal")
-    assert principal.limite_exposicion == 50
-    assert principal.limite_perdida == 10
-    assert principal.stop_loss == 5
-    assert principal.take_profit == 10
-
-
-def test_composite_aggregates_leaf_positions_and_nested_groups():
-    cartera = Cartera("Cartera de prueba")
-    cartera.activos.extend([
-        Posicion("Bitcoin", 0.1, 60000),
-        Posicion("Ethereum", 2, 3000),
-    ])
-
-    root = construir_composite(cartera)
-    grupo_crypto = GrupoActivos("Cripto")
-    for componente in root.componentes:
-        grupo_crypto.agregar(componente)
-
-    nested = GrupoActivos("Resumen")
-    nested.agregar(grupo_crypto)
-
-    assert root.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
-    assert nested.valor({"Bitcoin": 61000, "Ethereum": 3200}) == 12500
-    assert nested.cantidad_componentes() == 2
-
-
-def test_decorator_adds_market_audit_without_changing_price():
-    from patterns.adapter import ExchangeAAdapter
-
-    manager = ExchangeConnectionManager()
-    manager.reset_for_tests()
-    from patterns.adapter import ApiExchangeA
-
-    manager = ExchangeConnectionManager()
-    adapter = ExchangeAAdapter(ApiExchangeA(manager))
-    decorated = MercadoConAuditoria(adapter, "A")
-    asset = Criptomoneda("Bitcoin", 60000, "BTC")
-
-    price = decorated.consultar_precio(asset)
-    audit = decorated.resumen()
-
-    assert price == 60000.0
-    assert audit["exchange"] == "A"
-    assert audit["consultas"] == 1
-    assert audit["ultima_consulta"]["activo"] == "Bitcoin"
-
-
-def test_facade_unifies_market_portfolio_and_order_flow():
-    from models.order import EstadoOrden
-    from patterns.facade import TradingPlatformFacade
-
-    ExchangeConnectionManager.reset_for_tests()
-    facade = TradingPlatformFacade()
-
-    assert any(asset.nombre == "Bitcoin" for asset in facade.obtener_activos())
-    assert any(portfolio.nombre == "Cartera Principal" for portfolio in facade.listar_carteras())
-
-    registro = facade.crear_y_ejecutar_orden(
-        "MARKET",
-        "COMPRA",
-        "A",
-        "Bitcoin",
-        0.001,
-        "Cartera Principal",
-    )
-
-    assert registro.estado == EstadoOrden.EJECUTADA
-    assert registro.total > 0
-    assert facade.historial_ordenes()[0].id == registro.id
-    assert facade.obtener_cartera("Cartera Principal").buscar_posicion("Bitcoin") is not None
-
-
-def test_flyweight_reuses_normalized_market_pairs():
-    ParMercadoFactory.limpiar_cache()
-    try:
-        btc_a = ParMercadoFactory.obtener("btc", "usdt")
-        btc_b = ParMercadoFactory.obtener("BTC", "USDT")
-        eth = ParMercadoFactory.obtener("ETH", "USDT")
-
-        assert btc_a is btc_b
-        assert btc_a is not eth
-        assert btc_a.par == "BTC/USDT"
-        assert ParMercadoFactory.cantidad_compartidos() == 2
-        for invalid_symbol in (None, "", "BTC/USDT"):
-            try:
-                ParMercadoFactory.obtener(invalid_symbol, "USDT")
-            except ValueError:
-                pass
-            else:
-                raise AssertionError("El Flyweight debe rechazar símbolos inválidos")
-    finally:
-        ParMercadoFactory.limpiar_cache()
-
-
-def test_proxy_validates_and_lazily_creates_market_only_once():
-    from patterns.abstract_factory import Mercado
-
-    class MercadoFalso(Mercado):
-        def consultar_precio(self, activo):
-            return 125.0
-
-    creados = []
-
-    def crear_mercado():
-        mercado = MercadoFalso()
-        creados.append(mercado)
-        return mercado
-
-    proxy = MercadoProxy(crear_mercado)
-    assert proxy.inicializado is False
-
-    try:
-        proxy.consultar_precio("Bitcoin")
-    except TypeError:
-        pass
-    else:
-        raise AssertionError("El proxy debe rechazar objetos que no sean ActivoDigital")
-
-    assert creados == []
-    activo = Criptomoneda("Bitcoin", 60000, "BTC")
-    assert proxy.consultar_precio(activo) == 125.0
-    assert proxy.consultar_precio(activo) == 125.0
-    assert proxy.inicializado is True
-    assert len(creados) == 1
-
-
-def test_market_service_integrates_proxy_before_audited_adapter():
-    from patterns.decorator import MercadoConAuditoria
-    from services.market_service import MarketService
-
-    ExchangeConnectionManager.reset_for_tests()
-    service = MarketService()
-    mercado_decorado = service._markets["A"]
-    assert isinstance(mercado_decorado, MercadoConAuditoria)
-    proxy = mercado_decorado.mercado
-    assert isinstance(proxy, MercadoProxy)
-    assert proxy.inicializado is False
-
-    assert service.obtener_precio("Bitcoin", "A") == 60000.0
-    assert proxy.inicializado is True
-    assert service.obtener_auditoria_mercado("A")["consultas"] == 1
-
-
-def test_chain_of_responsibility_rejects_invalid_request_before_command_dispatch():
-    from patterns.facade import TradingPlatformFacade
-    from services.order_pattern_service import ServicioDespachoOrdenes
-
-    ExchangeConnectionManager.reset_for_tests()
-    facade = TradingPlatformFacade()
-    despachador = ServicioDespachoOrdenes(facade)
-
-    try:
-        despachador.ejecutar_orden(
-            "MARKET",
-            "COMPRA",
-            "A",
-            "Bitcoin",
-            0,
-            "Cartera Principal",
-        )
-    except ValueError as exc:
-        assert "cantidad" in str(exc).lower()
-    else:
-        raise AssertionError("La cadena debe detener una orden con cantidad inválida")
-
-    assert despachador.historial_comandos() == ()
-    assert facade.historial_ordenes() == []
-
-
-def test_command_dispatches_order_once_and_keeps_command_history():
-    from models.order import EstadoOrden
-    from patterns.facade import TradingPlatformFacade
-    from services.order_pattern_service import ServicioDespachoOrdenes
-
-    ExchangeConnectionManager.reset_for_tests()
-    facade = TradingPlatformFacade()
-    despachador = ServicioDespachoOrdenes(facade)
-
-    registro = despachador.ejecutar_orden(
-        "MARKET",
-        "COMPRA",
-        "A",
-        "Bitcoin",
-        0.001,
-        "Cartera Principal",
-    )
-
-    comandos = despachador.historial_comandos()
-    assert registro.estado == EstadoOrden.EJECUTADA
-    assert len(comandos) == 1
-    assert comandos[0].resultado is registro
-
-    # Repetir el mismo comando devuelve el resultado existente y no duplica
-    # la operación en el historial ni vuelve a descontar saldo de la cartera.
-    saldo_despues_de_compra = facade.obtener_cartera("Cartera Principal").saldo_usd
-    resultado_repetido = comandos[0].ejecutar()
-    assert resultado_repetido is registro
-    assert facade.obtener_cartera("Cartera Principal").saldo_usd == saldo_despues_de_compra
-    assert len(facade.historial_ordenes()) == 1
-    assert len(despachador.historial_comandos()) == 1
 ```

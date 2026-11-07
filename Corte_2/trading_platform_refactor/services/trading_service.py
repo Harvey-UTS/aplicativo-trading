@@ -6,6 +6,8 @@ from models.order import EstadoOrden, LadoOrden, OrdenRegistro, TipoOrden
 from services.market_service import MarketService
 from services.portfolio_service import PortfolioService
 from patterns.builder import PlataformaTrading, PlataformaTradingBuilder
+from patterns.iterator import ColeccionTrading
+from patterns.mediator import MediadorTrading
 
 
 class TradingService:
@@ -15,6 +17,8 @@ class TradingService:
         self.market_service = market_service
         self.portfolio_service = portfolio_service
         self._history: list[OrdenRegistro] = []
+        self._mediador = MediadorTrading()
+        self.portfolio_service.vincular_mediador(self._mediador)
 
     def crear_orden(
         self,
@@ -92,18 +96,39 @@ class TradingService:
         registro.mensaje = resultado.message
 
         if resultado.status == EstadoOrden.EJECUTADA:
-            if registro.lado == LadoOrden.COMPRA:
-                cartera.saldo_usd -= resultado.total
-                cartera.registrar_compra(activo, registro.cantidad, precio)
-            else:
-                vendido = cartera.registrar_venta(activo.nombre, registro.cantidad)
-                if not vendido:
-                    registro.estado = EstadoOrden.RECHAZADA
-                    registro.mensaje = "La venta no pudo actualizar la cartera."
-                    registro.total = 0.0
+            # Mediator coordina el punto de control previo y la actualización
+            # de la cartera sin acoplar el flujo de órdenes al caretaker.
+            self._mediador.notificar(
+                MediadorTrading.ANTES_ACTUALIZAR_CARTERA,
+                cartera=cartera,
+                registro=registro,
+            )
+            try:
+                if registro.lado == LadoOrden.COMPRA:
+                    cartera.saldo_usd -= resultado.total
+                    cartera.registrar_compra(activo, registro.cantidad, precio)
                 else:
-                    cartera.saldo_usd += resultado.total
+                    vendido = cartera.registrar_venta(activo.nombre, registro.cantidad)
+                    if not vendido:
+                        registro.estado = EstadoOrden.RECHAZADA
+                        registro.mensaje = "La venta no pudo actualizar la cartera."
+                        registro.total = 0.0
+                        self._mediador.notificar(
+                            MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
+                        )
+                    else:
+                        cartera.saldo_usd += resultado.total
+            except Exception:
+                self._mediador.notificar(
+                    MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
+                )
+                raise
 
+        self._mediador.notificar(
+            MediadorTrading.ORDEN_PROCESADA,
+            cartera=cartera,
+            registro=registro,
+        )
         self._history.insert(0, registro)
         return registro
 
@@ -143,6 +168,10 @@ class TradingService:
 
     def historial(self) -> list[OrdenRegistro]:
         return list(self._history)
+
+    def iterar_historial(self) -> ColeccionTrading[OrdenRegistro]:
+        """Entrega el historial mediante el patrón Iterator."""
+        return ColeccionTrading(self._history)
 
     @staticmethod
     def _parse_tipo(tipo_orden: str) -> TipoOrden:

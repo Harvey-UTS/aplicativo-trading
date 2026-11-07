@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y catorce patrones GoF.
+en una arquitectura modular con PySide6, servicios y diecisiete patrones GoF.
 
 ## Estructura
 
@@ -50,7 +50,10 @@ trading_platform/
 │       ├── command.dot
 │       ├── command.png
 │       ├── chain_of_responsibility.dot
-│       └── chain_of_responsibility.png
+│       ├── chain_of_responsibility.png
+│       ├── mediator.dot / mediator.png
+│       ├── memento.dot / memento.png
+│       └── iterator.dot / iterator.png
 ├── resources/
 │   ├── icons/
 │   └── images/
@@ -161,6 +164,15 @@ El comando encapsula los parámetros de compra o venta y delega la creación y e
 
 ### Chain of Responsibility — `CadenaValidacionOrden`
 La cadena de validación previa revisa los datos generales de la solicitud, las reglas de cantidad del activo, la cartera seleccionada y el precio objetivo de las órdenes Limit y Stop Loss. Cada manejador detiene la solicitud cuando encuentra un error o la delega al siguiente. `ServicioDespachoOrdenes` ejecuta estas comprobaciones antes de crear el comando; las validaciones de saldo y riesgo existentes permanecen en `PortfolioService`.
+
+### Mediator — `MediadorTrading`
+Centraliza los eventos del flujo de órdenes. `TradingService` notifica cuándo una operación ejecutada está a punto de modificar una cartera y cuándo termina su procesamiento; `PortfolioService` recibe esos eventos para guardar un estado previo y registrar el resultado. Así, los servicios no necesitan llamarse directamente para coordinar estas tareas.
+
+### Memento — `CarteraMemento` y `HistorialCartera`
+Conserva copias profundas del estado de una cartera antes de aplicar una operación ejecutada. El caretaker mantiene un historial acotado de veinte estados y permite restaurar el último punto de control, incluso ante un fallo durante la actualización. La restauración conserva la misma instancia de `Cartera`.
+
+### Iterator — `ColeccionTrading` e `IteradorTrading`
+Ofrece un recorrido uniforme y reutilizable sobre posiciones e historial de órdenes. La colección trabaja con una instantánea de los elementos, por lo que el recorrido no depende de la estructura interna ni cambia si la lista original se modifica después de crearla. Las páginas de órdenes y carteras utilizan este iterador para presentar sus registros.
 
 ## Capas
 

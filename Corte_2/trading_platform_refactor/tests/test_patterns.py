@@ -291,3 +291,115 @@ def test_command_dispatches_order_once_and_keeps_command_history():
     assert facade.obtener_cartera("Cartera Principal").saldo_usd == saldo_despues_de_compra
     assert len(facade.historial_ordenes()) == 1
     assert len(despachador.historial_comandos()) == 1
+
+
+def test_mediator_notifies_only_registered_receptors():
+    from patterns.mediator import MediadorTrading
+
+    mediator = MediadorTrading()
+    received = []
+    mediator.registrar("orden", lambda **data: received.append(data["id"]))
+    mediator.notificar("orden", id="ABC123")
+
+    assert received == ["ABC123"]
+    assert mediator.notificar("sin_receptores") == ()
+
+
+def test_memento_restores_complete_portfolio_state_without_replacing_instance():
+    from patterns.memento import HistorialCartera
+
+    cartera = Cartera("Cartera Memento")
+    cartera.recargar(1000, "USD")
+    cartera.activos.append(Posicion("Bitcoin", 0.1, 60000))
+    historial = HistorialCartera(capacidad=2)
+    identidad = id(cartera)
+    historial.guardar(cartera, "Estado inicial")
+
+    cartera.saldo_usd = 25
+    cartera.activos[0].cantidad = 2
+    cartera.configurar_riesgo(30, 5, 3, 8)
+    restaurado = historial.deshacer(cartera)
+
+    assert id(cartera) == identidad
+    assert cartera.saldo_usd == 1000
+    assert cartera.activos[0].cantidad == 0.1
+    assert cartera.limite_exposicion == 100
+    assert restaurado.motivo == "Estado inicial"
+    assert len(historial) == 0
+
+
+def test_iterator_traverses_a_stable_reusable_snapshot():
+    from patterns.iterator import ColeccionTrading
+
+    originales = ["Bitcoin", "Ethereum"]
+    coleccion = ColeccionTrading(originales)
+    originales.append("Solana")
+
+    assert list(coleccion) == ["Bitcoin", "Ethereum"]
+    assert list(coleccion) == ["Bitcoin", "Ethereum"]
+    assert len(coleccion) == 2
+
+
+def test_mediator_and_memento_integrate_with_successful_order_execution():
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    cartera = facade.obtener_cartera("Cartera Principal")
+    saldo_inicial = cartera.saldo_usd
+
+    registro = facade.crear_y_ejecutar_orden(
+        "MARKET", "COMPRA", "A", "Bitcoin", 0.001, cartera.nombre
+    )
+
+    portfolio_service = facade._trading.portfolio_service
+    assert registro.estado.value == "EJECUTADA"
+    assert cartera.saldo_usd < saldo_inicial
+    assert len(portfolio_service.listar_puntos_control(cartera.nombre)) == 1
+    assert portfolio_service.eventos_trading()[-1]["orden_id"] == registro.id
+
+    portfolio_service.restaurar_ultimo_estado(cartera.nombre)
+    assert cartera.saldo_usd == saldo_inicial
+    assert cartera.buscar_posicion("Bitcoin") is None
+
+
+def test_iterator_integrates_with_portfolio_positions_and_order_history():
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    facade.crear_y_ejecutar_orden(
+        "MARKET", "COMPRA", "A", "Bitcoin", 0.001, "Cartera Principal"
+    )
+
+    positions = facade._trading.portfolio_service.iterar_posiciones("Cartera Principal")
+    history = facade._trading.iterar_historial()
+
+    assert [position.nombre for position in positions] == ["Bitcoin"]
+    assert [order.activo for order in history] == ["Bitcoin"]
+
+
+def test_mediator_rolls_back_portfolio_when_order_update_fails(monkeypatch):
+    from patterns.facade import TradingPlatformFacade
+
+    def fail_purchase(_cartera, _activo, _cantidad, _precio):
+        raise RuntimeError("Fallo simulado al actualizar la posición")
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    cartera = facade.obtener_cartera("Cartera Principal")
+    saldo_inicial = cartera.saldo_usd
+    monkeypatch.setattr(Cartera, "registrar_compra", fail_purchase)
+
+    try:
+        facade.crear_y_ejecutar_orden(
+            "MARKET", "COMPRA", "A", "Bitcoin", 0.001, cartera.nombre
+        )
+    except RuntimeError as exc:
+        assert "Fallo simulado" in str(exc)
+    else:
+        raise AssertionError("La actualización simulada debía fallar")
+
+    assert cartera.saldo_usd == saldo_inicial
+    assert cartera.buscar_posicion("Bitcoin") is None
+    assert facade._trading.portfolio_service.listar_puntos_control(cartera.nombre) == ()

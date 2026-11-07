@@ -41,6 +41,9 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | Nuevo patrón | `patterns/proxy.py` + `services/market_service.py` | acceso validado e inicialización diferida de adapters |
 | Nuevo patrón | `patterns/command.py` + `services/order_pattern_service.py` + `ui/orders_page.py` | encapsulamiento y despacho de órdenes simuladas |
 | Nuevo patrón | `patterns/chain_of_responsibility.py` + `services/order_pattern_service.py` | validación previa encadenada de solicitudes |
+| Nuevo patrón | `patterns/mediator.py` + `services/trading_service.py` + `services/portfolio_service.py` | coordinación desacoplada de eventos de órdenes y carteras |
+| Nuevo patrón | `patterns/memento.py` + `services/portfolio_service.py` | puntos de control y restauración del estado de una cartera |
+| Nuevo patrón | `patterns/iterator.py` + `ui/orders_page.py` + `ui/portfolios_page.py` | recorrido uniforme de órdenes y posiciones |
 
 ## Singleton
 
@@ -181,3 +184,13 @@ El entorno de generación no dispone de `PySide6` instalado y no puede descargar
 
 ## Servicio de integración de patrones de órdenes
 `services/order_pattern_service.py` coordina los dos patrones nuevos. Construye el contexto de validación, consulta la cadena y únicamente cuando el resultado es válido crea `ComandoEjecutarOrden` para que `InvocadorOrdenes` lo despache. La pantalla `OrdersPage` utiliza este servicio para las nuevas solicitudes; el historial de la interfaz sigue consultándose mediante la fachada.
+
+
+## Mediator
+`MediadorTrading` distribuye los eventos `antes_actualizar_cartera`, `orden_procesada` y `restaurar_cartera`. `TradingService` emite las notificaciones y `PortfolioService` actúa como receptor para guardar el estado previo, registrar el resultado o restaurar la cartera si falla su actualización.
+
+## Memento
+`CarteraMemento` encapsula una copia profunda del estado completo de `Cartera`; `HistorialCartera` administra hasta veinte puntos de control. `PortfolioService` guarda automáticamente un memento antes de una actualización confirmada y permite restaurar el último estado sin sustituir el objeto de cartera.
+
+## Iterator
+`ColeccionTrading` conserva una instantánea de los elementos y crea un `IteradorTrading` independiente en cada recorrido. `OrdersPage` lo utiliza para presentar el historial y `PortfoliosPage` para recorrer las posiciones, sin modificar los modelos ni las listas originales.

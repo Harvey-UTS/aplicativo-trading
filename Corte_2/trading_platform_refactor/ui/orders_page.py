@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from services.order_pattern_service import ServicioDespachoOrdenes
+from patterns.iterator import ColeccionTrading
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -162,7 +163,7 @@ class OrdersPage(QWidget):
 
     def refresh(self) -> None:
         self._refresh_combos()
-        history = self.facade.historial_ordenes()
+        history = ColeccionTrading(self.facade.historial_ordenes())
         self.table.setRowCount(len(history))
         for row, order in enumerate(history):
             values = order.to_row()

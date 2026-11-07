@@ -1,6 +1,8 @@
-"""Carteras, Prototype y módulo de riesgo."""
+"""Carteras, Prototype, Iterator y módulo de riesgo."""
 
 from __future__ import annotations
+
+from patterns.iterator import ColeccionTrading
 
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
@@ -199,9 +201,10 @@ class PortfoliosPage(QWidget):
         self._refresh_table(cartera)
 
     def _refresh_table(self, cartera) -> None:
+        posiciones = ColeccionTrading(cartera.activos)
         prices = {
             position.nombre: self.facade.obtener_precio(position.nombre, "A")
-            for position in cartera.activos
+            for position in posiciones
         }
         total = cartera.valor_total_usd(prices)
         activos_valor = cartera.valor_activos(prices)
@@ -213,8 +216,9 @@ class PortfoliosPage(QWidget):
             f"Exposición: {riesgo['exposicion_pct']:.2f}%  •  Drawdown: {riesgo['drawdown_pct']:.2f}%  •  SL {cartera.stop_loss:.2f}%  •  TP {cartera.take_profit:.2f}%"
         )
 
-        self.table.setRowCount(len(cartera.activos))
-        for row, position in enumerate(cartera.activos):
+        posiciones = ColeccionTrading(cartera.activos)
+        self.table.setRowCount(len(posiciones))
+        for row, position in enumerate(posiciones):
             actual = prices.get(position.nombre, position.precio_promedio)
             value = position.cantidad * actual
             exposure = value / activos_valor * 100 if activos_valor else 0.0
