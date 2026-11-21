@@ -1,0 +1,25 @@
+digraph TemplateMethod {
+  graph [rankdir=TB, splines=polyline, nodesep=0.35, ranksep=0.46, bgcolor="white", pad=0.12, label="Template Method – Flujo común de ejecución de órdenes", labelloc=t, fontsize=20, fontname="Arial"];
+  node [shape=record, style="rounded,filled", fillcolor="#EEE9FF", color="#8467C7", fontname="Arial", fontsize=12, margin="0.14,0.09"];
+  edge [color="#765AAE", fontname="Arial", fontsize=9, arrowsize=0.8];
+
+  Trading [label="{TradingService||+ ejecutar_orden(...)\l}"];
+  Template [label="{[abstract] FlujoEjecucionOrdenTemplate||+ ejecutar(...)\l+ validar_operacion(...)\l+ actualizar_cartera(...)\l}", fillcolor="#E2F2FF", color="#4B91B8"];
+  Buy [label="{FlujoCompra||+ validar_operacion(...)\l+ actualizar_cartera(...)\l}"];
+  Sell [label="{FlujoVenta||+ validar_operacion(...)\l+ actualizar_cartera(...)\l}"];
+  Market [label="{MarketService||+ obtener_precio(...)\l}"];
+  Portfolio [label="{PortfolioService||+ validar_compra(...)\l+ validar_venta(...)\l}"];
+  State [label="{MaquinaEstadoOrden||+ procesar(resultado)\l}"];
+  History [label="{Historial: list[OrdenRegistro]||+ insertar(registro)\l}"];
+
+  Trading -> Template [label="selecciona por lado"];
+  Buy -> Template [label="especializa", arrowhead=empty, style=dashed];
+  Sell -> Template [label="especializa", arrowhead=empty, style=dashed];
+  Template -> Market [label="consulta"];
+  Template -> Portfolio [label="valida"];
+  Template -> State [label="actualiza estado"];
+  Template -> History [label="registra"];
+  {rank=same; Buy; Sell}
+  {rank=same; Market; Portfolio}
+  {rank=same; State; History}
+}

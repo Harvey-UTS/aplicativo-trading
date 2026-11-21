@@ -6,6 +6,11 @@ from patterns.composite import construir_composite
 from patterns.iterator import ColeccionTrading
 from patterns.memento import HistorialCartera
 from patterns.prototype import clonar_cartera, crear_cartera_principal, crear_gestor_carteras
+from patterns.strategy import (
+    EstrategiaRiesgo,
+    EstrategiaRiesgoConfigurada,
+    EstrategiaRiesgoPreventiva,
+)
 from models.portfolio import Cartera
 
 
@@ -20,6 +25,9 @@ class PortfolioService:
         self.gestor = crear_gestor_carteras(principal)
         self._mementos: dict[str, HistorialCartera] = {}
         self._eventos_trading: list[dict[str, object]] = []
+        self._estrategias_riesgo: dict[str, EstrategiaRiesgo] = {
+            principal.nombre: EstrategiaRiesgoConfigurada()
+        }
 
     def vincular_mediador(self, mediador) -> None:
         """Registra este servicio como receptor de los eventos del trading."""
@@ -88,6 +96,8 @@ class PortfolioService:
             raise ValueError("Ya existe una cartera con ese nombre.")
         clon = clonar_cartera(self.gestor, nombre, porcentaje)
         self._portfolios[clon.nombre] = clon
+        # Cada cartera nueva comienza con la política predeterminada.
+        self._estrategias_riesgo[clon.nombre] = EstrategiaRiesgoConfigurada()
         return clon
 
     def configurar_riesgo(
@@ -100,6 +110,34 @@ class PortfolioService:
     ) -> None:
         cartera = self.obtener_cartera(nombre)
         cartera.configurar_riesgo(exposicion, perdida, stop_loss, take_profit)
+
+    def configurar_estrategia_riesgo(self, nombre: str, estrategia: EstrategiaRiesgo) -> None:
+        """Asigna una política de evaluación a una cartera concreta."""
+        self.obtener_cartera(nombre)
+        if not isinstance(estrategia, EstrategiaRiesgo):
+            raise TypeError("La estrategia debe implementar EstrategiaRiesgo.")
+        self._estrategias_riesgo[nombre] = estrategia
+
+    def obtener_tipo_estrategia_riesgo(self, nombre: str) -> str:
+        """Devuelve la clave de la política activa para mostrarla en la interfaz."""
+        self.obtener_cartera(nombre)
+        estrategia = self._estrategias_riesgo.get(nombre)
+        if isinstance(estrategia, EstrategiaRiesgoPreventiva):
+            return "preventiva"
+        return "configurada"
+
+    def configurar_estrategia_riesgo_por_tipo(self, nombre: str, tipo: str) -> None:
+        """Selecciona una de las políticas disponibles sin exponer clases a la UI."""
+        estrategias = {
+            "configurada": EstrategiaRiesgoConfigurada,
+            "preventiva": EstrategiaRiesgoPreventiva,
+        }
+        clave = str(tipo).strip().lower()
+        clase_estrategia = estrategias.get(clave)
+        if clase_estrategia is None:
+            opciones = ", ".join(estrategias)
+            raise ValueError(f"Estrategia no válida. Opciones disponibles: {opciones}.")
+        self.configurar_estrategia_riesgo(nombre, clase_estrategia())
 
     def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
         cartera = self.obtener_cartera(nombre)
@@ -144,15 +182,15 @@ class PortfolioService:
         resumen = self.obtener_balance(cartera.nombre, precios)
         drawdown = float(resumen["drawdown_pct"])
         exposure = float(resumen["exposicion_pct"])
-        alertas: list[str] = []
-        if exposure > cartera.limite_exposicion:
-            alertas.append("Exposición por encima del límite configurado.")
-        if drawdown > cartera.limite_perdida:
-            alertas.append("Pérdida simulada por encima del límite configurado.")
+        estrategia = self._estrategias_riesgo.get(
+            cartera.nombre, EstrategiaRiesgoConfigurada()
+        )
+        evaluacion = estrategia.evaluar(cartera, exposure, drawdown)
         return {
             "exposicion_pct": exposure,
             "drawdown_pct": drawdown,
             "stop_loss": cartera.stop_loss,
             "take_profit": cartera.take_profit,
-            "alertas": alertas,
+            "alertas": evaluacion["alertas"],
+            "advertencias": evaluacion["advertencias"],
         }

@@ -190,3 +190,29 @@ QTableWidget#auditTable QTableCornerButton::section {
     background: #131b24;
     border: 0;
 }
+
+
+#riskAlertTitle {
+    color: #f0a2a2;
+    font-weight: 800;
+    padding: 2px 2px 5px 2px;
+}
+
+#riskWarningTitle {
+    color: #e8c47a;
+    font-weight: 800;
+    padding: 2px 2px 5px 2px;
+}
+
+QListWidget#riskAlertsList, QListWidget#riskWarningsList {
+    background: #0d1218;
+    border: 1px solid #2a3541;
+    border-radius: 8px;
+    color: #cbd5e1;
+    padding: 5px;
+}
+
+QListWidget#riskAlertsList::item, QListWidget#riskWarningsList::item {
+    padding: 5px 6px;
+    border-bottom: 1px solid #202832;
+}

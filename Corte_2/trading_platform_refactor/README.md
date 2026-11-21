@@ -2,7 +2,7 @@
 
 Aplicación local de simulación de trading para criptomonedas, tokens y NFT.
 La refactorización parte de los ejercicios del proyecto original y los convierte
-en una arquitectura modular con PySide6, servicios y diecisiete patrones GoF.
+en una arquitectura modular con PySide6, servicios y veintidós patrones GoF.
 
 ## Estructura
 
@@ -23,7 +23,15 @@ trading_platform/
 │   ├── flyweight.py
 │   ├── proxy.py
 │   ├── command.py
-│   └── chain_of_responsibility.py
+│   ├── chain_of_responsibility.py
+│   ├── mediator.py
+│   ├── memento.py
+│   ├── iterator.py
+│   ├── observer.py
+│   ├── state.py
+│   ├── strategy.py
+│   ├── template_method.py
+│   └── visitor.py
 ├── services/
 │   ├── trading_service.py
 │   ├── market_service.py
@@ -53,7 +61,12 @@ trading_platform/
 │       ├── chain_of_responsibility.png
 │       ├── mediator.dot / mediator.png
 │       ├── memento.dot / memento.png
-│       └── iterator.dot / iterator.png
+│       ├── iterator.dot / iterator.png
+│       ├── observer.dot / observer.png
+│       ├── state.dot / state.png
+│       ├── strategy.dot / strategy.png
+│       ├── template_method.dot / template_method.png
+│       └── visitor.dot / visitor.png
 ├── resources/
 │   ├── icons/
 │   └── images/
@@ -173,6 +186,22 @@ Conserva copias profundas del estado de una cartera antes de aplicar una operaci
 
 ### Iterator — `ColeccionTrading` e `IteradorTrading`
 Ofrece un recorrido uniforme y reutilizable sobre posiciones e historial de órdenes. La colección trabaja con una instantánea de los elementos, por lo que el recorrido no depende de la estructura interna ni cambia si la lista original se modifica después de crearla. Las páginas de órdenes y carteras utilizan este iterador para presentar sus registros.
+
+
+### Observer — `PublicadorMercado` y `ObservadorMercado`
+`MarketService` publica un `EventoPrecioMercado` después de obtener y normalizar un precio. Los componentes interesados se suscriben sin que el servicio conozca sus implementaciones; `MarketPage` recibe la notificación y actualiza su indicador de mercado. La publicación trabaja sobre una instantánea de suscriptores, permite cancelar la suscripción y aísla los errores de cada observador.
+
+### State — `MaquinaEstadoOrden`
+Modela el ciclo de vida de `OrdenRegistro` mediante `EstadoPendiente`, `EstadoEjecutada` y `EstadoRechazada`. La orden puede permanecer pendiente o pasar a un estado final; los estados ejecutado y rechazado no admiten transiciones posteriores. `TradingService` aplica el resultado del executor mediante la máquina de estados.
+
+### Strategy — `EstrategiaRiesgo`
+Permite cambiar la política de evaluación del riesgo de cada cartera sin modificar `PortfolioService`. `EstrategiaRiesgoConfigurada` es la opción predeterminada y genera alertas cuando se superan los límites; `EstrategiaRiesgoPreventiva` conserva esas alertas y añade advertencias desde el 80 %. En `Carteras & Riesgo`, el selector aplica inmediatamente la política a la cartera elegida y dos listas muestran las alertas y advertencias calculadas. La selección se administra de forma independiente por cartera mediante la fachada.
+
+### Template Method — `FlujoEjecucionOrdenTemplate`
+Define una secuencia común para ejecutar órdenes: recuperar precios, validar, invocar el executor, aplicar la actualización de cartera, procesar el estado y registrar el resultado. `FlujoCompra` y `FlujoVenta` especializan las validaciones y actualizaciones correspondientes a cada lado, mientras `TradingService` selecciona el flujo adecuado.
+
+### Visitor — `FichaTecnicaActivoVisitor`
+Utiliza doble despacho mediante `ActivoDigital.aceptar()` y el contrato `VisitanteActivo`. `FichaTecnicaActivoVisitor` genera una ficha técnica diferenciada para criptomonedas, tokens y NFT, incluyendo naturaleza, fraccionabilidad y reglas de cantidad. `MarketService` ofrece la consulta y `AssetsPage` presenta la información al seleccionar un activo.
 
 ## Capas
 

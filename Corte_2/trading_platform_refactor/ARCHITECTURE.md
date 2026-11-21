@@ -44,6 +44,11 @@ La UI nunca instancia directamente `Criptomoneda`, `Token`, `NFT`, APIs externas
 | Nuevo patrón | `patterns/mediator.py` + `services/trading_service.py` + `services/portfolio_service.py` | coordinación desacoplada de eventos de órdenes y carteras |
 | Nuevo patrón | `patterns/memento.py` + `services/portfolio_service.py` | puntos de control y restauración del estado de una cartera |
 | Nuevo patrón | `patterns/iterator.py` + `ui/orders_page.py` + `ui/portfolios_page.py` | recorrido uniforme de órdenes y posiciones |
+| Nuevo patrón | `patterns/observer.py` + `services/market_service.py` + `ui/market_page.py` | notificación desacoplada de precios consultados |
+| Nuevo patrón | `patterns/state.py` + `services/trading_service.py` | transiciones controladas del estado de las órdenes |
+| Nuevo patrón | `patterns/strategy.py` + `services/portfolio_service.py` | políticas intercambiables de evaluación de riesgo |
+| Nuevo patrón | `patterns/template_method.py` + `services/trading_service.py` | flujo común con pasos especializados de compra y venta |
+| Nuevo patrón | `patterns/visitor.py` + `models/asset.py` + `services/market_service.py` + `ui/assets_page.py` | fichas técnicas específicas para cada tipo de activo |
 
 ## Singleton
 
@@ -194,3 +199,18 @@ El entorno de generación no dispone de `PySide6` instalado y no puede descargar
 
 ## Iterator
 `ColeccionTrading` conserva una instantánea de los elementos y crea un `IteradorTrading` independiente en cada recorrido. `OrdersPage` lo utiliza para presentar el historial y `PortfoliosPage` para recorrer las posiciones, sin modificar los modelos ni las listas originales.
+
+## Observer
+`PublicadorMercado` mantiene una lista segura de suscriptores y distribuye `EventoPrecioMercado` cada vez que `MarketService` obtiene un precio. `MarketPage` implementa `actualizar(evento)` y se suscribe/desuscribe mediante la fachada. El servicio de mercado no conoce la interfaz ni depende de ella; los fallos de un observador se aíslan para no interrumpir las consultas.
+
+## State
+`MaquinaEstadoOrden` mantiene el estado asociado a `OrdenRegistro` y delega las transiciones en `EstadoPendiente`, `EstadoEjecutada` o `EstadoRechazada`. Una orden pendiente puede permanecer pendiente o pasar a uno de los estados finales; una orden ejecutada o rechazada no admite transiciones posteriores. El flujo de ejecución aplica el resultado normalizado del executor mediante esta máquina.
+
+## Strategy
+`PortfolioService` mantiene una `EstrategiaRiesgo` independiente por cartera. `EstrategiaRiesgoConfigurada` es la política predeterminada y genera alertas cuando se supera la exposición o pérdida permitida; `EstrategiaRiesgoPreventiva` conserva esas alertas y agrega advertencias al alcanzar el 80 % de los límites. `TradingPlatformFacade` expone `obtener_tipo_estrategia_riesgo()` y `configurar_estrategia_riesgo_por_tipo()` para que `PortfoliosPage` permita cambiar la política desde un selector sin instanciar clases en la UI. La pantalla recalcula las métricas y presenta las alertas y advertencias en listas separadas.
+
+## Template Method
+`FlujoEjecucionOrdenTemplate.ejecutar()` establece la secuencia común: comprobar la configuración, consultar precios, validar la operación, invocar el executor, solicitar el punto de control, actualizar la cartera, aplicar State y registrar el resultado. `FlujoCompra` y `FlujoVenta` implementan los pasos que cambian entre ambos lados. `TradingService` selecciona el flujo correspondiente sin duplicar el algoritmo general.
+
+## Visitor
+`ActivoDigital.aceptar()` aplica doble despacho hacia `VisitanteActivo`. `FichaTecnicaActivoVisitor` implementa una operación externa que distingue criptomonedas, tokens y NFT para construir su ficha técnica, incluyendo naturaleza, fraccionabilidad y regla de cantidad. `MarketService` expone la ficha y `AssetsPage` la presenta al seleccionar un activo, sin incorporar esas reglas de presentación en los modelos.

@@ -1,0 +1,13 @@
+digraph Observer {
+  graph [rankdir=TB, splines=polyline, nodesep=0.34, ranksep=0.30, bgcolor="white", pad=0.14, label="Observer – Notificación de precios del mercado", labelloc=t, fontsize=18, fontname="Arial"];
+  node [shape=box, style="rounded,filled", fillcolor="#EEE9FF", color="#8467C7", fontname="Arial", fontsize=12, margin="0.14,0.10"];
+  edge [color="#765AAE", fontname="Arial", fontsize=9, arrowsize=0.8];
+
+  MarketService [label="MarketService\n+ obtener_precio(...)"];
+  Publisher [label="PublicadorMercado\n- observadores: list\n+ suscribir(...)\n+ cancelar_suscripcion(...)\n+ notificar(...) "];
+  Observer [label="ObservadorMercado\n+ actualizar(evento)", fillcolor="#E2F2FF", color="#4B91B8"];
+
+  MarketService -> Publisher [label="publica evento"];
+  Publisher -> Observer [label="notifica 0..*", constraint=false, arrowhead=none];
+  {rank=same; Publisher; Observer}
+}

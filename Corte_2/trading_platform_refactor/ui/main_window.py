@@ -131,5 +131,6 @@ class MainWindow(QMainWindow):
         self.portfolios_page.refresh()
 
     def closeEvent(self, event) -> None:
+        self.market_page.cerrar()
         self.facade.cerrar()
         event.accept()

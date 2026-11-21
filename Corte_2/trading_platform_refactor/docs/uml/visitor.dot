@@ -1,0 +1,21 @@
+digraph Visitor {
+  graph [rankdir=TB, splines=polyline, nodesep=0.34, ranksep=0.48, bgcolor="white", pad=0.12, label="Visitor – Fichas técnicas de activos digitales", labelloc=t, fontsize=20, fontname="Arial"];
+  node [shape=record, style="rounded,filled", fillcolor="#EEE9FF", color="#8467C7", fontname="Arial", fontsize=12, margin="0.14,0.09"];
+  edge [color="#765AAE", fontname="Arial", fontsize=9, arrowsize=0.8];
+
+  Market [label="{MarketService||+ obtener_ficha_activo(...)\l}"];
+  Concrete [label="{FichaTecnicaActivoVisitor||+ visitar_criptomoneda(...)\l+ visitar_token(...)\l+ visitar_nft(...)\l}"];
+  Visitor [label="{[interface] VisitanteActivo||+ visitar_criptomoneda(...)\l+ visitar_token(...)\l+ visitar_nft(...)\l}", fillcolor="#E2F2FF", color="#4B91B8"];
+  Asset [label="{[abstract] ActivoDigital||+ aceptar(visitante)\l}", fillcolor="#E2F2FF", color="#4B91B8"];
+  Crypto [label="{Criptomoneda||+ aceptar(visitante)\l}"];
+  Token [label="{Token||+ aceptar(visitante)\l}"];
+  NFT [label="{NFT||+ aceptar(visitante)\l}"];
+
+  Market -> Concrete [label="ejecuta"];
+  Concrete -> Visitor [label="implementa", arrowhead=empty, style=dashed];
+  Asset -> Visitor [label="acepta", style=dashed, arrowhead=vee];
+  Crypto -> Asset [label="hereda", arrowhead=empty];
+  Token -> Asset [label="hereda", arrowhead=empty];
+  NFT -> Asset [label="hereda", arrowhead=empty];
+  {rank=same; Crypto; Token; NFT}
+}

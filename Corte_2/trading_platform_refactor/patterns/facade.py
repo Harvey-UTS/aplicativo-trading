@@ -6,6 +6,8 @@ from models.asset import ActivoDigital
 from models.order import OrdenRegistro
 from models.portfolio import Cartera
 from patterns.builder import PlataformaTrading
+from patterns.observer import ObservadorMercado
+from patterns.strategy import EstrategiaRiesgo
 from patterns.singleton import ExchangeConnectionManager
 from services.market_service import MarketRow, MarketService
 from services.portfolio_service import PortfolioService
@@ -55,6 +57,15 @@ class TradingPlatformFacade:
     def obtener_activos(self) -> list[ActivoDigital]:
         return self._market.obtener_activos()
 
+    def obtener_ficha_activo(self, nombre: str) -> dict[str, object]:
+        return self._market.obtener_ficha_activo(nombre)
+
+    def suscribir_observador_mercado(self, observador: ObservadorMercado) -> None:
+        self._market.suscribir_observador(observador)
+
+    def cancelar_suscripcion_mercado(self, observador: ObservadorMercado) -> bool:
+        return self._market.cancelar_suscripcion(observador)
+
     def obtener_activo(self, nombre: str) -> ActivoDigital:
         return self._market.obtener_activo(nombre)
 
@@ -94,6 +105,15 @@ class TradingPlatformFacade:
         self._portfolios.configurar_riesgo(
             nombre, exposicion, perdida, stop_loss, take_profit
         )
+
+    def configurar_estrategia_riesgo(self, nombre: str, estrategia: EstrategiaRiesgo) -> None:
+        self._portfolios.configurar_estrategia_riesgo(nombre, estrategia)
+
+    def obtener_tipo_estrategia_riesgo(self, nombre: str) -> str:
+        return self._portfolios.obtener_tipo_estrategia_riesgo(nombre)
+
+    def configurar_estrategia_riesgo_por_tipo(self, nombre: str, tipo: str) -> None:
+        self._portfolios.configurar_estrategia_riesgo_por_tipo(nombre, tipo)
 
     def obtener_balance(self, nombre: str, precios: dict[str, float]) -> dict:
         return self._portfolios.obtener_balance(nombre, precios)

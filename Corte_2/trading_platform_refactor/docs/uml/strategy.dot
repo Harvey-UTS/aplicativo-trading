@@ -1,0 +1,17 @@
+digraph Strategy {
+  graph [rankdir=TB, splines=polyline, nodesep=0.36, ranksep=0.48, bgcolor="white", pad=0.12, label="Strategy – Políticas de evaluación del riesgo", labelloc=t, fontsize=20, fontname="Arial"];
+  node [shape=record, style="rounded,filled", fillcolor="#EEE9FF", color="#8467C7", fontname="Arial", fontsize=13, margin="0.15,0.10"];
+  edge [color="#765AAE", fontname="Arial", fontsize=10, arrowsize=0.8];
+
+  Service [label="{PortfolioService|- _estrategias_riesgo: dict\l|+ configurar_estrategia_riesgo(...)\l+ evaluar_riesgo(...)\l}"];
+  Strategy [label="{[abstract] EstrategiaRiesgo||+ evaluar(cartera, exposicion, drawdown)\l}", fillcolor="#E2F2FF", color="#4B91B8"];
+  Default [label="{EstrategiaRiesgoConfigurada||+ evaluar(...)\l}"];
+  Preventive [label="{EstrategiaRiesgoPreventiva|+ FACTOR_PREVENTIVO: 0.80\l|+ evaluar(...)\l}"];
+  Portfolio [label="{Cartera|+ limite_exposicion: float\l+ limite_perdida: float\l|}", fillcolor="#F4F0FF"];
+
+  Service -> Strategy [label="usa por cartera"];
+  Default -> Strategy [label="implementa", arrowhead=empty, style=dashed];
+  Preventive -> Strategy [label="implementa", arrowhead=empty, style=dashed];
+  Strategy -> Portfolio [label="consulta límites", style=dashed];
+  {rank=same; Default; Preventive}
+}

@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from patterns.visitor import VisitanteActivo
 
 
 @dataclass(slots=True)
@@ -47,6 +51,10 @@ class ActivoDigital(ABC):
     @abstractmethod
     def validar_cantidad(self, cantidad: float) -> None:
         """Valida las reglas de cantidad del tipo de activo."""
+
+    @abstractmethod
+    def aceptar(self, visitante: VisitanteActivo) -> dict[str, object]:
+        """Permite que un visitante ejecute una operación específica del tipo."""
 
     def comprar(self, cantidad: float) -> ResultadoActivo:
         self.validar_cantidad(cantidad)
@@ -87,6 +95,9 @@ class Criptomoneda(ActivoDigital):
         if cantidad <= 0:
             raise ValueError("La cantidad debe ser mayor que cero.")
 
+    def aceptar(self, visitante: VisitanteActivo) -> dict[str, object]:
+        return visitante.visitar_criptomoneda(self)
+
 
 class Token(ActivoDigital):
     """Producto concreto para tokens."""
@@ -96,6 +107,9 @@ class Token(ActivoDigital):
     def validar_cantidad(self, cantidad: float) -> None:
         if cantidad <= 0:
             raise ValueError("La cantidad debe ser mayor que cero.")
+
+    def aceptar(self, visitante: VisitanteActivo) -> dict[str, object]:
+        return visitante.visitar_token(self)
 
 
 class NFT(ActivoDigital):
@@ -107,3 +121,6 @@ class NFT(ActivoDigital):
     def validar_cantidad(self, cantidad: float) -> None:
         if float(cantidad) != 1.0:
             raise ValueError("Un NFT se opera de uno en uno.")
+
+    def aceptar(self, visitante: VisitanteActivo) -> dict[str, object]:
+        return visitante.visitar_nft(self)

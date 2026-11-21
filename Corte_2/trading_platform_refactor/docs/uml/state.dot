@@ -1,0 +1,21 @@
+digraph State {
+  graph [rankdir=TB, splines=polyline, nodesep=0.34, ranksep=0.48, bgcolor="white", pad=0.12, label="State – Ciclo de vida de una orden", labelloc=t, fontsize=20, fontname="Arial"];
+  node [shape=record, style="rounded,filled", fillcolor="#EEE9FF", color="#8467C7", fontname="Arial", fontsize=13, margin="0.15,0.10"];
+  edge [color="#765AAE", fontname="Arial", fontsize=10, arrowsize=0.8];
+
+  Flow [label="{FlujoEjecucionOrdenTemplate||+ ejecutar(...)\l}"];
+  Machine [label="{MaquinaEstadoOrden|- registro: OrdenRegistro\l- _estado: EstadoOrdenState|+ procesar(resultado)\l+ estado_actual\l+ es_terminal\l}"];
+  Context [label="{OrdenRegistro|+ estado: EstadoOrden\l+ total: float\l+ mensaje: str\l|}", fillcolor="#F4F0FF"];
+  State [label="{[abstract] EstadoOrdenState||+ procesar(resultado)\l}", fillcolor="#E2F2FF", color="#4B91B8"];
+  Pending [label="{EstadoPendiente||+ procesar(resultado)\l}"];
+  Done [label="{EstadoEjecutada||+ procesar(resultado)\l}"];
+  Rejected [label="{EstadoRechazada||+ procesar(resultado)\l}"];
+
+  Flow -> Machine [label="aplica resultado"];
+  Machine -> Context [label="sincroniza"];
+  Machine -> State [label="mantiene estado"];
+  Pending -> State [label="hereda", arrowhead=empty, style=dashed];
+  Done -> State [label="hereda", arrowhead=empty, style=dashed];
+  Rejected -> State [label="hereda", arrowhead=empty, style=dashed];
+  {rank=same; Pending; Done; Rejected}
+}

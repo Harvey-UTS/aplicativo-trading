@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
     QComboBox,
     QLineEdit,
+    QListWidget,
+    QAbstractItemView,
 )
 
 
@@ -31,6 +33,7 @@ class PortfoliosPage(QWidget):
         self._risk_dirty = False
         self._editing_portfolio: str | None = None
         self._loading_risk_fields = False
+        self._loading_strategy = False
         self._build()
         self.refresh()
 
@@ -74,7 +77,11 @@ class PortfoliosPage(QWidget):
         save_button = QPushButton("Guardar riesgo")
         save_button.setObjectName("primaryButton")
         save_button.clicked.connect(self.save_risk)
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.addItem("Configurada · alerta al superar límites", "configurada")
+        self.strategy_combo.addItem("Preventiva · advertencia desde el 80 %", "preventiva")
         risk_form.addRow("Cartera", self.portfolio_combo)
+        risk_form.addRow("Estrategia de riesgo", self.strategy_combo)
         risk_form.addRow("Límite exposición", self.exposure)
         risk_form.addRow("Límite pérdida", self.loss)
         risk_form.addRow("Stop Loss", self.stop_loss)
@@ -94,6 +101,33 @@ class PortfoliosPage(QWidget):
         summary.addWidget(self.risk_label)
         layout.addLayout(summary)
 
+        # Resultados visibles de la estrategia seleccionada.
+        results_group = QGroupBox("Alertas y advertencias de la estrategia")
+        results_layout = QHBoxLayout(results_group)
+        alert_column = QVBoxLayout()
+        alert_title = QLabel("Alertas · límites superados")
+        alert_title.setObjectName("riskAlertTitle")
+        self.alerts_list = QListWidget()
+        self.alerts_list.setObjectName("riskAlertsList")
+        self.alerts_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.alerts_list.setMaximumHeight(112)
+        alert_column.addWidget(alert_title)
+        alert_column.addWidget(self.alerts_list)
+
+        warning_column = QVBoxLayout()
+        warning_title = QLabel("Advertencias · seguimiento preventivo")
+        warning_title.setObjectName("riskWarningTitle")
+        self.warnings_list = QListWidget()
+        self.warnings_list.setObjectName("riskWarningsList")
+        self.warnings_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.warnings_list.setMaximumHeight(112)
+        warning_column.addWidget(warning_title)
+        warning_column.addWidget(self.warnings_list)
+
+        results_layout.addLayout(alert_column, 1)
+        results_layout.addLayout(warning_column, 1)
+        layout.addWidget(results_group)
+
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Activo", "Cantidad", "Precio promedio", "Valor mercado", "% cartera"])
         self.table.setObjectName("dataTable")
@@ -102,6 +136,7 @@ class PortfoliosPage(QWidget):
         layout.addWidget(self.table, 1)
 
         self.portfolio_combo.currentTextChanged.connect(self._on_portfolio_changed)
+        self.strategy_combo.currentIndexChanged.connect(self._on_strategy_changed)
         for field in (self.exposure, self.loss, self.stop_loss, self.take_profit):
             field.valueChanged.connect(self._mark_risk_dirty)
 
@@ -157,7 +192,45 @@ class PortfoliosPage(QWidget):
         # seleccionar otra cartera; el refresco automático nunca los pisa.
         cartera = self.facade.obtener_cartera(name)
         self._set_risk_fields_from_model(cartera)
+        self._set_strategy_from_model(name)
         self._refresh_table(cartera)
+
+    def _set_strategy_from_model(self, portfolio_name: str) -> None:
+        """Sincroniza el selector con la política propia de la cartera."""
+        tipo = self.facade.obtener_tipo_estrategia_riesgo(portfolio_name)
+        self._loading_strategy = True
+        try:
+            index = self.strategy_combo.findData(tipo)
+            if index >= 0:
+                self.strategy_combo.setCurrentIndex(index)
+        finally:
+            self._loading_strategy = False
+
+    def _on_strategy_changed(self, _index: int) -> None:
+        """Aplica inmediatamente la política elegida y actualiza sus resultados."""
+        if self._loading_strategy:
+            return
+        name = self.portfolio_combo.currentText()
+        tipo = self.strategy_combo.currentData()
+        if not name or not tipo:
+            return
+
+        try:
+            self.facade.configurar_estrategia_riesgo_por_tipo(name, str(tipo))
+        except (TypeError, ValueError) as exc:
+            QMessageBox.warning(self, "Estrategia de riesgo", str(exc))
+            self._set_strategy_from_model(name)
+            return
+
+        cartera = self.facade.obtener_cartera(name)
+        self._refresh_table(cartera)
+        self.on_change()
+
+    @staticmethod
+    def _populate_messages(widget: QListWidget, messages, empty_message: str) -> None:
+        widget.clear()
+        values = [str(message) for message in messages]
+        widget.addItems(values if values else [empty_message])
 
     def save_risk(self) -> None:
         name = self.portfolio_combo.currentText()
@@ -197,6 +270,7 @@ class PortfoliosPage(QWidget):
         editing_same_portfolio = self._risk_dirty and self._editing_portfolio == name
         if force or not editing_same_portfolio:
             self._set_risk_fields_from_model(cartera)
+        self._set_strategy_from_model(name)
 
         self._refresh_table(cartera)
 
@@ -214,6 +288,14 @@ class PortfoliosPage(QWidget):
         riesgo = self.facade.evaluar_riesgo(cartera, prices)
         self.risk_label.setText(
             f"Exposición: {riesgo['exposicion_pct']:.2f}%  •  Drawdown: {riesgo['drawdown_pct']:.2f}%  •  SL {cartera.stop_loss:.2f}%  •  TP {cartera.take_profit:.2f}%"
+        )
+        self._populate_messages(
+            self.alerts_list, riesgo.get("alertas", []),
+            "Sin alertas: los límites configurados no se han superado.",
+        )
+        self._populate_messages(
+            self.warnings_list, riesgo.get("advertencias", []),
+            "Sin advertencias preventivas para las métricas actuales.",
         )
 
         posiciones = ColeccionTrading(cartera.activos)

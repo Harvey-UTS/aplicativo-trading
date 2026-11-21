@@ -8,16 +8,21 @@ from services.portfolio_service import PortfolioService
 from patterns.builder import PlataformaTrading, PlataformaTradingBuilder
 from patterns.iterator import ColeccionTrading
 from patterns.mediator import MediadorTrading
+from patterns.template_method import FlujoCompra, FlujoVenta
 
 
 class TradingService:
-    """Orquesta Builder, Bridge, Adapter, Abstract Factory, Prototype y Singleton."""
+    """Orquesta la construcción y ejecución de órdenes mediante servicios y patrones."""
 
     def __init__(self, market_service: MarketService, portfolio_service: PortfolioService) -> None:
         self.market_service = market_service
         self.portfolio_service = portfolio_service
         self._history: list[OrdenRegistro] = []
         self._mediador = MediadorTrading()
+        self._flujos_ejecucion = {
+            LadoOrden.COMPRA: FlujoCompra(),
+            LadoOrden.VENTA: FlujoVenta(),
+        }
         self.portfolio_service.vincular_mediador(self._mediador)
 
     def crear_orden(
@@ -59,78 +64,18 @@ class TradingService:
         return platform, registro
 
     def ejecutar_orden(self, platform: PlataformaTrading, registro: OrdenRegistro) -> OrdenRegistro:
-        if platform.orden is None or platform.activo is None or platform.cartera is None:
-            raise ValueError("La plataforma de trading no tiene una orden completa configurada.")
-
-        activo = platform.activo
-        cartera = platform.cartera
-        precio = self.market_service.obtener_precio(activo, registro.exchange)
-        registro.precio = precio
-        activo.precio = precio
-
-        precios_cartera = {
-            p.nombre: self.market_service.obtener_precio(p.nombre, registro.exchange)
-            for p in cartera.activos
-        }
-        precios_cartera[activo.nombre] = precio
-
-        if registro.lado == LadoOrden.COMPRA:
-            self.portfolio_service.validar_compra(
-                cartera,
-                activo.nombre,
-                registro.cantidad,
-                precio,
-                precios_cartera,
-            )
-        else:
-            self.portfolio_service.validar_venta(cartera, activo.nombre, registro.cantidad)
-
-        resultado = platform.orden.ejecutar(
-            activo,
-            registro.lado,
-            registro.cantidad,
-            precio,
-        )
-        registro.estado = resultado.status
-        registro.total = resultado.total
-        registro.mensaje = resultado.message
-
-        if resultado.status == EstadoOrden.EJECUTADA:
-            # Mediator coordina el punto de control previo y la actualización
-            # de la cartera sin acoplar el flujo de órdenes al caretaker.
-            self._mediador.notificar(
-                MediadorTrading.ANTES_ACTUALIZAR_CARTERA,
-                cartera=cartera,
-                registro=registro,
-            )
-            try:
-                if registro.lado == LadoOrden.COMPRA:
-                    cartera.saldo_usd -= resultado.total
-                    cartera.registrar_compra(activo, registro.cantidad, precio)
-                else:
-                    vendido = cartera.registrar_venta(activo.nombre, registro.cantidad)
-                    if not vendido:
-                        registro.estado = EstadoOrden.RECHAZADA
-                        registro.mensaje = "La venta no pudo actualizar la cartera."
-                        registro.total = 0.0
-                        self._mediador.notificar(
-                            MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
-                        )
-                    else:
-                        cartera.saldo_usd += resultado.total
-            except Exception:
-                self._mediador.notificar(
-                    MediadorTrading.RESTAURAR_CARTERA, cartera=cartera
-                )
-                raise
-
-        self._mediador.notificar(
-            MediadorTrading.ORDEN_PROCESADA,
-            cartera=cartera,
+        try:
+            flujo = self._flujos_ejecucion[registro.lado]
+        except KeyError as exc:
+            raise ValueError("El lado de la orden no tiene un flujo de ejecución válido.") from exc
+        return flujo.ejecutar(
+            market_service=self.market_service,
+            portfolio_service=self.portfolio_service,
+            mediador=self._mediador,
+            plataforma=platform,
             registro=registro,
+            historial=self._history,
         )
-        self._history.insert(0, registro)
-        return registro
 
     def comprar_activo(
         self,

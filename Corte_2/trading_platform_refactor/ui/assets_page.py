@@ -74,7 +74,24 @@ class AssetsPage(QWidget):
         self.table.setObjectName("dataTable")
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
+        self.table.cellClicked.connect(self._mostrar_ficha)
         layout.addWidget(self.table, 1)
+
+        self.asset_detail = QLabel("Selecciona un activo para consultar su ficha técnica.")
+        self.asset_detail.setObjectName("pageSubtitle")
+        self.asset_detail.setWordWrap(True)
+        layout.addWidget(self.asset_detail)
+
+    def _mostrar_ficha(self, row: int, _column: int) -> None:
+        item = self.table.item(row, 0)
+        if item is None:
+            return
+        ficha = self.facade.obtener_ficha_activo(item.text())
+        negociacion = "Fraccionable" if ficha["fraccionable"] else "No fraccionable"
+        self.asset_detail.setText(
+            f"{ficha['naturaleza']} · {ficha['simbolo']} · {negociacion} · "
+            f"{ficha['regla_cantidad']}"
+        )
 
     def create_asset(self) -> None:
         try:

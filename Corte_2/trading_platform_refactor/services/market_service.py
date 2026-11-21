@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from models.asset import ActivoDigital
 from patterns.abstract_factory import FabricaExchangeA, FabricaExchangeB, FabricaExchangeC
@@ -10,6 +11,8 @@ from patterns.decorator import MercadoConAuditoria
 from patterns.factory_method import CreadorCriptomoneda, CreadorNFT, CreadorToken
 from patterns.proxy import MercadoProxy
 from patterns.singleton import ExchangeConnectionManager
+from patterns.observer import EventoPrecioMercado, ObservadorMercado, PublicadorMercado
+from patterns.visitor import FichaTecnicaActivoVisitor
 
 
 @dataclass(slots=True)
@@ -23,12 +26,14 @@ class MarketRow:
 
 
 class MarketService:
-    """Coordina Factory Method, Abstract Factory, Adapter, Flyweight, Proxy y Singleton."""
+    """Coordina los patrones de mercado, Observer y Visitor."""
 
     USD_COP = 4000.0
 
     def __init__(self, manager: ExchangeConnectionManager | None = None) -> None:
         self.manager = manager or ExchangeConnectionManager()
+        self._publicador_mercado = PublicadorMercado()
+        self._ficha_visitor = FichaTecnicaActivoVisitor()
         self.factories = {
             "A": FabricaExchangeA(),
             "B": FabricaExchangeB(),
@@ -85,6 +90,16 @@ class MarketService:
     def obtener_activos(self) -> list[ActivoDigital]:
         return list(self._assets.values())
 
+    def obtener_ficha_activo(self, nombre: str) -> dict[str, object]:
+        """Construye la ficha del activo mediante el patrón Visitor."""
+        return self.obtener_activo(nombre).aceptar(self._ficha_visitor)
+
+    def suscribir_observador(self, observador: ObservadorMercado) -> None:
+        self._publicador_mercado.suscribir(observador)
+
+    def cancelar_suscripcion(self, observador: ObservadorMercado) -> bool:
+        return self._publicador_mercado.cancelar_suscripcion(observador)
+
     def obtener_activo(self, nombre: str) -> ActivoDigital:
         try:
             return self._assets[nombre]
@@ -104,8 +119,18 @@ class MarketService:
             # Los activos personalizados todavía pueden cotizar con el precio
             # inicial mientras el simulador no tenga un ticker específico.
             precio = activo.precio
-        self.manager.set_cached_price(str(exchange).upper(), f"{activo.simbolo}/USDT", precio)
+        codigo_exchange = str(exchange).upper()
+        self.manager.set_cached_price(codigo_exchange, f"{activo.simbolo}/USDT", precio)
         activo.precio = float(precio)
+        self._publicador_mercado.notificar(
+            EventoPrecioMercado(
+                exchange=codigo_exchange,
+                activo=activo.nombre,
+                simbolo=activo.simbolo,
+                precio=float(precio),
+                fecha=datetime.now(),
+            )
+        )
         return float(precio)
 
     def obtener_auditoria_mercado(self, exchange: str) -> dict[str, object]:

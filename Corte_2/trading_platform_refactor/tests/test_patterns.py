@@ -403,3 +403,167 @@ def test_mediator_rolls_back_portfolio_when_order_update_fails(monkeypatch):
     assert cartera.saldo_usd == saldo_inicial
     assert cartera.buscar_posicion("Bitcoin") is None
     assert facade._trading.portfolio_service.listar_puntos_control(cartera.nombre) == ()
+
+
+def test_observer_notifies_market_subscribers_and_supports_unsubscribe():
+    from services.market_service import MarketService
+
+    class ObservadorPrueba:
+        def __init__(self):
+            self.eventos = []
+
+        def actualizar(self, evento):
+            self.eventos.append(evento)
+
+    ExchangeConnectionManager.reset_for_tests()
+    market = MarketService()
+    observer = ObservadorPrueba()
+    market.suscribir_observador(observer)
+
+    price = market.obtener_precio("Bitcoin", "A")
+    assert len(observer.eventos) == 1
+    assert observer.eventos[0].activo == "Bitcoin"
+    assert observer.eventos[0].exchange == "A"
+    assert observer.eventos[0].precio == price
+    assert market.cancelar_suscripcion(observer) is True
+
+    market.obtener_precio("Ethereum", "A")
+    assert len(observer.eventos) == 1
+
+
+def test_observer_failure_does_not_interrupt_market_price_retrieval():
+    from patterns.observer import PublicadorMercado, EventoPrecioMercado
+    from datetime import datetime
+
+    class ObservadorDefectuoso:
+        def actualizar(self, _evento):
+            raise RuntimeError("Fallo aislado del observador")
+
+    publisher = PublicadorMercado()
+    publisher.suscribir(ObservadorDefectuoso())
+    event = EventoPrecioMercado("A", "Bitcoin", "BTC", 60000.0, datetime.now())
+    errors = publisher.notificar(event)
+    assert len(errors) == 1
+    assert isinstance(errors[0], RuntimeError)
+
+
+def test_state_pattern_controls_order_transitions_and_terminal_states():
+    from models.order import ExecutionResult, EstadoOrden, OrdenRegistro
+    from patterns.state import MaquinaEstadoOrden
+
+    registro = OrdenRegistro()
+    machine = MaquinaEstadoOrden(registro)
+    pending = ExecutionResult(EstadoOrden.PENDIENTE, "Esperando precio", 0)
+    machine.procesar(pending)
+    assert machine.estado_actual == EstadoOrden.PENDIENTE
+    assert machine.es_terminal is False
+
+    executed = ExecutionResult(EstadoOrden.EJECUTADA, "Ejecutada", 125.0)
+    machine.procesar(executed)
+    assert machine.estado_actual == EstadoOrden.EJECUTADA
+    assert machine.es_terminal is True
+    assert registro.total == 125.0
+    assert registro.mensaje == "Ejecutada"
+
+    try:
+        machine.procesar(pending)
+    except ValueError as exc:
+        assert "estado final" in str(exc)
+    else:
+        raise AssertionError("Una orden ejecutada no debe volver a pendiente")
+
+
+def test_strategy_pattern_preserves_default_risk_and_supports_preventive_policy():
+    from models.portfolio import Posicion
+    from patterns.strategy import EstrategiaRiesgoPreventiva
+    from services.portfolio_service import PortfolioService
+
+    service = PortfolioService()
+    cartera = service.obtener_cartera("Cartera Principal")
+    cartera.activos.append(Posicion("Bitcoin", 0.1, 40900.0))
+    precios = {"Bitcoin": 40900.0}
+
+    default_result = service.evaluar_riesgo(cartera, precios)
+    assert default_result["alertas"] == []
+    assert default_result["advertencias"] == []
+
+    service.configurar_estrategia_riesgo(
+        cartera.nombre, EstrategiaRiesgoPreventiva()
+    )
+    preventive_result = service.evaluar_riesgo(cartera, precios)
+    assert preventive_result["alertas"] == []
+    assert any("se aproxima" in warning for warning in preventive_result["advertencias"])
+
+
+def test_strategy_can_be_selected_from_ui_keys_and_is_scoped_per_portfolio():
+    from models.portfolio import Posicion
+    from services.portfolio_service import PortfolioService
+
+    service = PortfolioService()
+    principal = service.obtener_cartera("Cartera Principal")
+    principal.activos.append(Posicion("Bitcoin", 0.1, 40900.0))
+    prices = {"Bitcoin": 40900.0}
+
+    default_result = service.evaluar_riesgo(principal, prices)
+    assert default_result["alertas"] == []
+    assert default_result["advertencias"] == []
+    assert service.obtener_tipo_estrategia_riesgo(principal.nombre) == "configurada"
+
+    service.configurar_estrategia_riesgo_por_tipo(principal.nombre, "preventiva")
+    preventive_result = service.evaluar_riesgo(principal, prices)
+    assert service.obtener_tipo_estrategia_riesgo(principal.nombre) == "preventiva"
+    assert preventive_result["alertas"] == []
+    assert any("se aproxima" in warning for warning in preventive_result["advertencias"])
+
+    cloned = service.clonar_cartera("Cartera de Prueba", 50.0)
+    assert service.obtener_tipo_estrategia_riesgo(cloned.nombre) == "configurada"
+    assert service.obtener_tipo_estrategia_riesgo(principal.nombre) == "preventiva"
+
+    try:
+        service.configurar_estrategia_riesgo_por_tipo(principal.nombre, "desconocida")
+    except ValueError as exc:
+        assert "Estrategia no válida" in str(exc)
+    else:
+        raise AssertionError("Una clave de estrategia desconocida debe rechazarse")
+
+
+def test_template_method_integrates_purchase_and_sale_flows():
+    from models.order import EstadoOrden
+    from patterns.facade import TradingPlatformFacade
+
+    ExchangeConnectionManager.reset_for_tests()
+    facade = TradingPlatformFacade()
+    cartera = facade.obtener_cartera("Cartera Principal")
+
+    compra = facade.crear_y_ejecutar_orden(
+        "MARKET", "COMPRA", "A", "Bitcoin", 0.01, cartera.nombre
+    )
+    posicion_despues_compra = cartera.buscar_posicion("Bitcoin")
+    assert compra.estado == EstadoOrden.EJECUTADA
+    assert posicion_despues_compra is not None
+    cantidad_comprada = posicion_despues_compra.cantidad
+
+    venta = facade.crear_y_ejecutar_orden(
+        "MARKET", "VENTA", "A", "Bitcoin", 0.005, cartera.nombre
+    )
+    posicion_despues_venta = cartera.buscar_posicion("Bitcoin")
+    assert venta.estado == EstadoOrden.EJECUTADA
+    assert posicion_despues_venta is not None
+    assert posicion_despues_venta.cantidad < cantidad_comprada
+    assert facade.historial_ordenes()[0] is venta
+
+
+def test_visitor_builds_type_specific_asset_sheets_through_market_service():
+    from services.market_service import MarketService
+
+    ExchangeConnectionManager.reset_for_tests()
+    market = MarketService()
+
+    crypto = market.obtener_ficha_activo("Bitcoin")
+    nft = market.obtener_ficha_activo("CryptoArt #001")
+
+    assert crypto["naturaleza"] == "Criptoactivo fungible"
+    assert crypto["fraccionable"] is True
+    assert nft["naturaleza"] == "Activo digital no fungible"
+    assert nft["fraccionable"] is False
+    assert nft["regla_cantidad"] == "Se negocia una unidad por operación."
